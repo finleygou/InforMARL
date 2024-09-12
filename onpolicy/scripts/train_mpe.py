@@ -205,11 +205,9 @@ def main(args):
             # home folder as {'my_wandb_api_key': 'INSERT API HERE'}
             # NOTE this is only for running on systems without internet access
             # have to run `wandb sync wandb/run_name` to sync logs to wandboard
-            with open(os.path.expanduser("~") + "/keys.json") as json_file:
-                key = json.load(json_file)
-                my_wandb_api_key = key["my_wandb_api_key"]  # NOTE change here as well
-            os.environ["WANDB_API_KEY"] = my_wandb_api_key
-            os.environ["WANDB_MODE"] = "dryrun"
+            os.environ["WANDB_API_KEY"] = "5aceaf53ea8aba2eca3b09e5b256acf7908efc38"
+            os.environ["WANDB_MODE"] = "online"
+            # os.environ["WANDB_MODE"] = "dryrun"
             os.environ["WANDB_SAVE_CODE"] = "true"
 
         print_box("Creating wandboard...")
@@ -217,16 +215,16 @@ def main(args):
             config=all_args,
             project=all_args.project_name,
             # project=all_args.env_name,
-            entity=all_args.user_name,
+            # entity=all_args.user_name,
             notes=socket.gethostname(),
             name=str(all_args.algorithm_name)
             + "_"
             + str(all_args.experiment_name)
             + "_seed"
             + str(all_args.seed),
-            # group=all_args.scenario_name,
+            group=all_args.scenario_name,
             dir=str(run_dir),
-            # job_type="training",
+            job_type="training",
             reinit=True,
         )
     else:

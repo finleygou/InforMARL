@@ -13,34 +13,35 @@
 # source /etc/profile
 # module load anaconda/2022a
 
-logs_folder="out_informarl10"
+logs_folder="out_informarl5"
 mkdir -p $logs_folder
 # Run the script
 seed_max=1
-n_agents=10
+n_agents=5
 # graph_feat_types=("global" "global" "relative" "relative")
 # cent_obs=("True" "False" "True" "False")
-ep_lens=(25 50)
+ep_lens=200
 
 for seed in `seq ${seed_max}`;
 do
 # seed=`expr ${seed} + 1`
 echo "seed: ${seed}"
 # execute the script with different params
-python  ../onpolicy/scripts/train_mpe.py --use_valuenorm --use_popart \
---project_name "compare_${n_agents}" \
+CUDA_VISIBLE_DEVICES='2,3' python  ../onpolicy/scripts/train_mpe.py --use_valuenorm --use_popart \
+--project_name "GraphMPE" \
 --env_name "GraphMPE" \
 --algorithm_name "rmappo" \
 --seed ${seed} \
---experiment_name "informarl_${ep_lens[$SLURM_ARRAY_TASK_ID]}" \
+--experiment_name "check" \
 --scenario_name "navigation_graph" \
+--use_wandb False \
 --num_agents=${n_agents} \
 --collision_rew 5 \
 --n_training_threads 1 --n_rollout_threads 128 \
 --num_mini_batch 1 \
---episode_length ${ep_lens[$SLURM_ARRAY_TASK_ID]} \
+--episode_length ${ep_lens} \
 --num_env_steps 5000000 \
---ppo_epoch 10 --use_ReLU --gain 0.01 --lr 7e-4 --critic_lr 7e-4 \
+--ppo_epoch 15 --use_ReLU --gain 0.01 --lr 7e-4 --critic_lr 7e-4 \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \

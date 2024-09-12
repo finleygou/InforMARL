@@ -156,3 +156,24 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+__pycache__
+results
+*.pyc
+/gifs/
+build
+win_rate
+*.so
+*.csv
+RODE
+*.egg-info
+wandb
+.vscode
+api
+logs
+.nfs*
+*.so
+.idea/vcs.xml
+*.log
+onpolicy/scripts/train_mpe_scripts/nohup.out
+*.txt

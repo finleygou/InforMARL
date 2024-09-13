@@ -408,6 +408,12 @@ def get_config():
         "--recurrent_N", type=int, default=1, help="The number of recurrent layers."
     )
     parser.add_argument(
+        "--use_lstm",
+        type=lambda x: bool(strtobool(x)),
+        default=False,
+        help="Whether to use LSTM for recurrent policy",
+    )
+    parser.add_argument(
         "--data_chunk_length",
         type=int,
         default=10,

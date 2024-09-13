@@ -9,6 +9,7 @@ from onpolicy.algorithms.utils.util import init, check
 from onpolicy.algorithms.utils.gnn import GNNBase
 from onpolicy.algorithms.utils.mlp import MLPBase
 from onpolicy.algorithms.utils.rnn import RNNLayer
+from onpolicy.algorithms.utils.lstm import LSTMLayer
 from onpolicy.algorithms.utils.act import ACTLayer
 from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
@@ -72,6 +73,7 @@ class GR_Actor(nn.Module):
         self._use_policy_active_masks = args.use_policy_active_masks
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
+        self._use_lstm = args.use_lstm
         self._recurrent_N = args.recurrent_N
         self.split_batch = split_batch
         self.max_batch_size = max_batch_size
@@ -89,12 +91,20 @@ class GR_Actor(nn.Module):
         self.base = MLPBase(args, obs_shape=None, override_obs_dim=mlp_base_in_dim)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            self.rnn = RNNLayer(
-                self.hidden_size,
-                self.hidden_size,
-                self._recurrent_N,
-                self._use_orthogonal,
-            )
+            if self._use_lstm:
+                self.rnn = LSTMLayer(
+                    self.hidden_size,  # input size
+                    self.hidden_size, # output size 
+                    self._recurrent_N,
+                    self._use_orthogonal,
+                )
+            else:
+                self.rnn = RNNLayer(
+                    self.hidden_size,
+                    self.hidden_size,
+                    self._recurrent_N,
+                    self._use_orthogonal,
+                )
 
         self.act = ACTLayer(
             action_space, self.hidden_size, self._use_orthogonal, self._gain
@@ -172,6 +182,7 @@ class GR_Actor(nn.Module):
             actor_features = self.base(actor_features)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
+            # print("Actor: actor_features.shape: ", actor_features.shape)
             actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
 
         actions, action_log_probs = self.act(
@@ -305,6 +316,7 @@ class GR_Critic(nn.Module):
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
         self._recurrent_N = args.recurrent_N
+        self._use_lstm = args.use_lstm
         self._use_popart = args.use_popart
         self.split_batch = split_batch
         self.max_batch_size = max_batch_size
@@ -333,12 +345,20 @@ class GR_Critic(nn.Module):
         self.base = MLPBase(args, cent_obs_shape, override_obs_dim=mlp_base_in_dim)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            self.rnn = RNNLayer(
-                self.hidden_size,
-                self.hidden_size,
-                self._recurrent_N,
-                self._use_orthogonal,
-            )
+            if self._use_lstm:
+                self.rnn = LSTMLayer(
+                    self.hidden_size,
+                    self.hidden_size,
+                    self._recurrent_N,
+                    self._use_orthogonal,
+                )
+            else:
+                self.rnn = RNNLayer(
+                    self.hidden_size,
+                    self.hidden_size,
+                    self._recurrent_N,
+                    self._use_orthogonal,
+                )
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0))

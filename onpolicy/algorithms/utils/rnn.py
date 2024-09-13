@@ -22,6 +22,10 @@ class RNNLayer(nn.Module):
         self.norm = nn.LayerNorm(outputs_dim)
 
     def forward(self, x, hxs, masks):
+        # print("x.shape before: ", x.shape)  # [5, 64]
+        # print("hxs.shape before: ", hxs.shape)  # [5, 1, 64]
+        # print("masks.shape before: ", masks.shape)  # [5, 1]
+
         if x.size(0) == hxs.size(0):
             x, hxs = self.rnn(
                 x.unsqueeze(0),
@@ -80,4 +84,7 @@ class RNNLayer(nn.Module):
             hxs = hxs.transpose(0, 1)
 
         x = self.norm(x)
+
+        # print("after x.shape: ", x.shape)
+        # print("after hxs.shape: ", hxs.shape)
         return x, hxs

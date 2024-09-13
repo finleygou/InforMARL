@@ -20,7 +20,7 @@ seed_max=1
 n_agents=5
 # graph_feat_types=("global" "global" "relative" "relative")
 # cent_obs=("True" "False" "True" "False")
-ep_lens=200
+ep_lens=25
 
 for seed in `seq ${seed_max}`;
 do
@@ -37,14 +37,15 @@ CUDA_VISIBLE_DEVICES='2,3' python  ../onpolicy/scripts/train_mpe.py --use_valuen
 --use_wandb False \
 --num_agents=${n_agents} \
 --collision_rew 5 \
---n_training_threads 1 --n_rollout_threads 128 \
---num_mini_batch 1 \
+--n_training_threads 16 --n_rollout_threads 4 \
+--use_lstm "True" \
+--num_mini_batch 16 \
 --episode_length ${ep_lens} \
 --num_env_steps 5000000 \
 --ppo_epoch 15 --use_ReLU --gain 0.01 --lr 7e-4 --critic_lr 7e-4 \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \
---auto_mini_batch_size --target_mini_batch_size 128 
+--auto_mini_batch_size --target_mini_batch_size 16
 # &> $logs_folder/out_${ep_lens[$SLURM_ARRAY_TASK_ID]}_${seed}
 done

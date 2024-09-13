@@ -32,7 +32,7 @@ class SharedReplayBuffer(object):
     def __init__(self, args, num_agents, obs_space, cent_obs_space, act_space):
         self.episode_length = args.episode_length
         self.n_rollout_threads = args.n_rollout_threads
-        self.hidden_size = args.hidden_size
+        self.hidden_size = 2*args.hidden_size if args.use_lstm else args.hidden_size
         self.recurrent_N = args.recurrent_N
         self.gamma = args.gamma
         self.gae_lambda = args.gae_lambda

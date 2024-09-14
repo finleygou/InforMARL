@@ -7,7 +7,7 @@ import setproctitle
 import numpy as np
 from pathlib import Path
 import torch
-
+from onpolicy import global_var as glv
 import os, sys
 
 sys.path.append(os.path.abspath(os.getcwd()))
@@ -24,6 +24,8 @@ from onpolicy.envs.env_wrappers import (
 
 """Train script for MPEs."""
 
+glv._init()
+glv.set_value('CL_ratio',0.0)
 
 def make_train_env(all_args: argparse.Namespace):
     def get_env_fn(rank: int):

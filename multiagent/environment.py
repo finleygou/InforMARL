@@ -6,6 +6,7 @@ import random
 from typing import Callable, List, Tuple, Dict, Union, Optional
 from multiagent.core import World, Agent
 from multiagent.multi_discrete import MultiDiscrete
+from onpolicy import global_var as glv
 
 # update bounds to center around agent
 cam_range = 2
@@ -258,6 +259,12 @@ class MultiAgentBaseEnv(gym.Env):
             action = action[1:]
         # make sure we used all elements of action
         assert len(action) == 0
+
+    def _set_CL(self, CL_ratio):
+        # 通过多进程set value，与env_wrapper直接关联，不能改。
+        # 此处glv是这个进程中的！与mperunner中的并不共用。
+        glv.set_value('CL_ratio', CL_ratio)
+        self.CL_ratio = glv.get_value('CL_ratio')
 
     # reset rendering assets
     def _reset_render(self) -> None:

@@ -6,6 +6,8 @@ import torch
 from onpolicy.runner.shared.base_runner import Runner
 import wandb
 import imageio
+from onpolicy import global_var as glv
+import csv
 
 
 def _t2n(x):
@@ -22,8 +24,22 @@ class GMPERunner(Runner):
 
     def __init__(self, config):
         super(GMPERunner, self).__init__(config)
+        self.save_data = self.all_args.save_data
+        self.use_train_render = self.all_args.use_train_render
+        self.no_imageshow = self.all_args.no_imageshow
+        self.reward_file_name = self.all_args.reward_file_name
+        if self.use_train_render:
+            print("render the image while training")
 
     def run(self):
+        if self.save_data:
+            #csv
+            print('save training data')
+            file = open(self.reward_file_name+'.csv', 'w', encoding='utf-8', newline="")
+            writer = csv.writer(file)
+            writer.writerow(['step', 'average', 'min', 'max', 'std'])
+            file.close()
+
         self.warmup()
 
         start = time.time()
@@ -36,6 +52,8 @@ class GMPERunner(Runner):
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
 
+            glv.set_value('CL_ratio', episode/episodes)  #curriculum learning
+            self.envs.set_CL(glv.get_value('CL_ratio'))  # env_wrapper
             for step in range(self.episode_length):
                 # Sample actions
                 (
@@ -92,13 +110,36 @@ class GMPERunner(Runner):
 
                 avg_ep_rew = np.mean(self.buffer.rewards) * self.episode_length
                 train_infos["average_episode_rewards"] = avg_ep_rew
-                print(
-                    f"Average episode rewards is {avg_ep_rew:.3f} \t"
-                    f"Total timesteps: {total_num_steps} \t "
-                    f"Percentage complete {total_num_steps / self.num_env_steps * 100:.3f}"
-                )
+                # print(
+                #     f"Average episode rewards is {avg_ep_rew:.3f} \t"
+                #     f"Total timesteps: {total_num_steps} \t "
+                #     f"Percentage complete {total_num_steps / self.num_env_steps * 100:.3f} \t "
+                #     f"CL ratio: {glv.get_value('CL_ratio')}"
+                # )
+                print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}, CL {}.\n"
+                        .format(self.all_args.scenario_name,
+                                self.algorithm_name,
+                                self.experiment_name,
+                                episode,
+                                episodes,
+                                total_num_steps,
+                                self.num_env_steps,
+                                int(total_num_steps / (end - start)),
+                                glv.get_value('CL_ratio')))
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)
+
+                r = self.buffer.rewards.mean(2).sum(axis=(0, 2))
+                Average = np.mean(r)
+                Min = np.min(r)
+                Max = np.max(r)
+                Std = np.std(r)
+
+                if self.save_data:
+                    file = open(self.reward_file_name+'.csv', 'a', encoding='utf-8', newline="")
+                    writer = csv.writer(file)
+                    writer.writerow([total_num_steps, Average, Min, Max, Std])
+                    file.close()
 
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:

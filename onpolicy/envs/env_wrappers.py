@@ -167,6 +167,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
                 remote.send(fr)
             elif data == "human":
                 env.render(mode=data)
+        elif cmd == 'set_cl':
+            env._set_CL(data)
         elif cmd == "reset_task":
             ob = env.reset_task()
             remote.send(ob)
@@ -247,6 +249,29 @@ class GuardSubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    # def render(self, mode="human"):
+    #     if mode == "rgb_array":
+    #         return np.array([env.render(mode=mode) for env in self.envs])
+    #     elif mode == "human":
+    #         for env in self.envs:
+    #             env.render(mode=mode)
+    #     else:
+    #         raise NotImplementedError
+
+    def render(self, mode="rgb_array"):
+        # for remote in self.remotes:
+        #     remote.send(('render', mode))
+        remote = self.remotes[0]  # 对于第一个进程的env使用render
+        remote.send(('render', mode))  # 进程通信，下发render指令
+        if mode == "rgb_array":   
+            # frame = [remote.recv() for remote in self.remotes]
+            # return np.stack(frame) 
+            frame = remote.recv()
+            return frame  # np.array 图像格式
+        
+    def set_CL(self, CL_ratio):
+        for remote in self.remotes:
+            remote.send(('set_cl', CL_ratio))
 
 class SubprocVecEnv(ShareVecEnv):
     def __init__(self, env_fns, spaces=None):
@@ -315,12 +340,28 @@ class SubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    # def render(self, mode="rgb_array"):
+    #     for remote in self.remotes:
+    #         remote.send(("render", mode))
+    #     if mode == "rgb_array":
+    #         frame = [remote.recv() for remote in self.remotes]
+    #         return np.stack(frame)
+        
     def render(self, mode="rgb_array"):
+        # for remote in self.remotes:
+        #     remote.send(('render', mode))
+        remote = self.remotes[0]  # 对于第一个进程的env使用render
+        remote.send(('render', mode))  # 进程通信，下发render指令
+        if mode == "rgb_array":   
+            # frame = [remote.recv() for remote in self.remotes]
+            # return np.stack(frame) 
+            frame = remote.recv()
+            return frame  # np.array 图像格式
+        
+    def set_CL(self, CL_ratio):
         for remote in self.remotes:
-            remote.send(("render", mode))
-        if mode == "rgb_array":
-            frame = [remote.recv() for remote in self.remotes]
-            return np.stack(frame)
+            remote.send(('set_cl', CL_ratio))
+
 
 
 def shareworker(remote, parent_remote, env_fn_wrapper):
@@ -440,6 +481,20 @@ class ShareSubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    def render(self, mode="rgb_array"):
+        # for remote in self.remotes:
+        #     remote.send(('render', mode))
+        remote = self.remotes[0]  # 对于第一个进程的env使用render
+        remote.send(('render', mode))  # 进程通信，下发render指令
+        if mode == "rgb_array":   
+            # frame = [remote.recv() for remote in self.remotes]
+            # return np.stack(frame) 
+            frame = remote.recv()
+            return frame  # np.array 图像格式
+        
+    def set_CL(self, CL_ratio):
+        for remote in self.remotes:
+            remote.send(('set_cl', CL_ratio))
 
 def choosesimpleworker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
@@ -794,6 +849,10 @@ class DummyVecEnv(ShareVecEnv):
                 env.render(mode=mode)
         else:
             raise NotImplementedError
+        
+    def set_CL(self, CL_ratio):
+        for env in self.envs:
+            env._set_CL(CL_ratio)
 
 
 class ShareDummyVecEnv(ShareVecEnv):
@@ -838,14 +897,20 @@ class ShareDummyVecEnv(ShareVecEnv):
         for env in self.envs:
             env.close()
 
-    def render(self, mode="human"):
-        if mode == "rgb_array":
-            return np.array([env.render(mode=mode) for env in self.envs])
-        elif mode == "human":
-            for env in self.envs:
-                env.render(mode=mode)
-        else:
-            raise NotImplementedError
+    def render(self, mode="rgb_array"):
+        # for remote in self.remotes:
+        #     remote.send(('render', mode))
+        remote = self.remotes[0]  # 对于第一个进程的env使用render
+        remote.send(('render', mode))  # 进程通信，下发render指令
+        if mode == "rgb_array":   
+            # frame = [remote.recv() for remote in self.remotes]
+            # return np.stack(frame) 
+            frame = remote.recv()
+            return frame  # np.array 图像格式
+        
+    def set_CL(self, CL_ratio):
+        for env in self.envs:
+            env._set_CL(CL_ratio)
 
 
 class ChooseDummyVecEnv(ShareVecEnv):
@@ -889,6 +954,10 @@ class ChooseDummyVecEnv(ShareVecEnv):
                 env.render(mode=mode)
         else:
             raise NotImplementedError
+        
+    def set_CL(self, CL_ratio):
+        for env in self.envs:
+            env._set_CL(CL_ratio)
 
 
 class ChooseSimpleDummyVecEnv(ShareVecEnv):
@@ -956,6 +1025,8 @@ def graphworker(remote, parent_remote, env_fn_wrapper):
                 remote.send(fr)
             elif data == "human":
                 env.render(mode=data)
+        elif cmd == 'set_cl':
+            env._set_CL(data)
         elif cmd == "reset_task":
             ob, ag_id, node_ob, adj = env.reset_task()
             remote.send((ob, ag_id, node_ob, adj))
@@ -1027,14 +1098,20 @@ class GraphDummyVecEnv(ShareVecEnv):
         for env in self.envs:
             env.close()
 
-    def render(self, mode="human"):
-        if mode == "rgb_array":
-            return np.array([env.render(mode=mode) for env in self.envs])
-        elif mode == "human":
-            for env in self.envs:
-                env.render(mode=mode)
-        else:
-            raise NotImplementedError
+    def render(self, mode="rgb_array"):
+        # for remote in self.remotes:
+        #     remote.send(('render', mode))
+        remote = self.remotes[0]  # 对于第一个进程的env使用render
+        remote.send(('render', mode))  # 进程通信，下发render指令
+        if mode == "rgb_array":   
+            # frame = [remote.recv() for remote in self.remotes]
+            # return np.stack(frame) 
+            frame = remote.recv()
+            return frame  # np.array 图像格式
+        
+    def set_CL(self, CL_ratio):
+        for env in self.envs:
+            env._set_CL(CL_ratio)
 
 
 class GraphSubprocVecEnv(ShareVecEnv):
@@ -1128,8 +1205,16 @@ class GraphSubprocVecEnv(ShareVecEnv):
         self.closed = True
 
     def render(self, mode="rgb_array"):
+        # for remote in self.remotes:
+        #     remote.send(('render', mode))
+        remote = self.remotes[0]  # 对于第一个进程的env使用render
+        remote.send(('render', mode))  # 进程通信，下发render指令
+        if mode == "rgb_array":   
+            # frame = [remote.recv() for remote in self.remotes]
+            # return np.stack(frame) 
+            frame = remote.recv()
+            return frame  # np.array 图像格式
+        
+    def set_CL(self, CL_ratio):
         for remote in self.remotes:
-            remote.send(("render", mode))
-        if mode == "rgb_array":
-            frame = [remote.recv() for remote in self.remotes]
-            return np.stack(frame)
+            remote.send(('set_cl', CL_ratio))

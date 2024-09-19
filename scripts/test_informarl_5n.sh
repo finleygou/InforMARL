@@ -34,12 +34,12 @@ CUDA_VISIBLE_DEVICES='2,3' python  ../onpolicy/scripts/train_mpe.py --use_valuen
 --seed ${seed} \
 --experiment_name "check" \
 --scenario_name "navigation_graph" \
---use_wandb "True" \
+--use_wandb "False" \
 --num_agents=${n_agents} \
 --collision_rew 5 \
 --n_training_threads 16 --n_rollout_threads 128 \
 --use_lstm "False" \
---num_mini_batch 64 \
+--num_mini_batch 128 \
 --episode_length ${ep_lens} \
 --num_env_steps 5000000 \
 --ppo_epoch 15 --use_ReLU --gain 0.01 --lr 7e-4 --critic_lr 7e-4 \

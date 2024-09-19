@@ -783,6 +783,10 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
                     dtype=np.float32,
                 )
             )
+        
+        # print("node_observation_space: ", self.node_observation_space[0])  # (13, 7)
+        # print("edge_observation_space: ", self.edge_observation_space[0])  # (1, )
+        # print("adj_observation_space: ", self.adj_observation_space[0])  # (13, 13)
 
     def step(self, action_n: List) -> Tuple[List, List, List, List, List, List, List]:
         if self.update_graph is not None:
@@ -816,6 +820,10 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
         reward = np.sum(reward_n)
         if self.shared_reward:
             reward_n = [[reward]] * self.n  # NOTE this line is similar to PPOEnv
+
+        # print("node_obs_n: ", node_obs_n[0])
+        # print("adj_n: ", adj_n[0])
+        # print("agent_id_n: ", agent_id_n[0])
 
         return obs_n, agent_id_n, node_obs_n, adj_n, reward_n, done_n, info_n
 

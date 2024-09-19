@@ -6,7 +6,8 @@ import torch
 from torch import Tensor
 import torch.nn as nn
 from onpolicy.algorithms.utils.util import init, check
-from onpolicy.algorithms.utils.gnn import GNNBase
+# from onpolicy.algorithms.utils.gnn_transformer import GNNBase
+# from onpolicy.algorithms.utils.gnn import GNNBase
 from onpolicy.algorithms.utils.mlp import MLPBase
 from onpolicy.algorithms.utils.rnn import RNNLayer
 from onpolicy.algorithms.utils.lstm import LSTMLayer
@@ -67,7 +68,7 @@ class GR_Actor(nn.Module):
         super(GR_Actor, self).__init__()
         self.args = args
         self.hidden_size = args.hidden_size
-
+        self.use_att_gnn = args.use_att_gnn
         self._gain = args.gain
         self._use_orthogonal = args.use_orthogonal
         self._use_policy_active_masks = args.use_policy_active_masks
@@ -80,11 +81,13 @@ class GR_Actor(nn.Module):
         self.tpdv = dict(dtype=torch.float32, device=device)
 
         obs_shape = get_shape_from_obs_space(obs_space)
-        node_obs_shape = get_shape_from_obs_space(node_obs_space)[
-            1
-        ]  # returns (num_nodes, num_node_feats)
+        node_obs_shape = get_shape_from_obs_space(node_obs_space)[1]  # returns (num_nodes, num_node_feats), get 7 from (13, 7)
         edge_dim = get_shape_from_obs_space(edge_obs_space)[0]  # returns (edge_dim,)
 
+        if self.use_att_gnn:
+            from onpolicy.algorithms.utils.gnn import GNNBase
+        else:
+            from onpolicy.algorithms.utils.gnn_transformer import GNNBase
         self.gnn_base = GNNBase(args, node_obs_shape, edge_dim, args.actor_graph_aggr)
         gnn_out_dim = self.gnn_base.out_dim  # output shape from gnns
         mlp_base_in_dim = gnn_out_dim + obs_shape[0]
@@ -163,20 +166,18 @@ class GR_Actor(nn.Module):
         # if batch size is big, split into smaller batches, forward pass and then concatenate
         if (self.split_batch) and (obs.shape[0] > self.max_batch_size):
             # print(f'Actor obs: {obs.shape[0]}')
-            batchGenerator = minibatchGenerator(
-                obs, node_obs, adj, agent_id, self.max_batch_size
-            )
+            batchGenerator = minibatchGenerator(obs, node_obs, adj, agent_id, self.max_batch_size)
             actor_features = []
             for batch in batchGenerator:
                 obs_batch, node_obs_batch, adj_batch, agent_id_batch = batch
-                nbd_feats_batch = self.gnn_base(
-                    node_obs_batch, adj_batch, agent_id_batch
-                )
+                # print("obs: {.f}, node_obs: {.f}, adj: {.f}, agent_id: {.f}".format(obs_batch, node_obs_batch, adj_batch, agent_id_batch))
+                nbd_feats_batch = self.gnn_base(node_obs_batch, adj_batch, agent_id_batch)
                 act_feats_batch = torch.cat([obs_batch, nbd_feats_batch], dim=1)
                 actor_feats_batch = self.base(act_feats_batch)
                 actor_features.append(actor_feats_batch)
             actor_features = torch.cat(actor_features, dim=0)
         else:
+            # print("node_obs: {}, adj:{}, id:{}".format(node_obs.shape, adj.shape, agent_id))  # (5,13,7)  (5,13,13)
             nbd_features = self.gnn_base(node_obs, adj, agent_id)
             actor_features = torch.cat([obs, nbd_features], dim=1)
             actor_features = self.base(actor_features)
@@ -312,6 +313,7 @@ class GR_Critic(nn.Module):
         super(GR_Critic, self).__init__()
         self.args = args
         self.hidden_size = args.hidden_size
+        self.use_att_gnn = args.use_att_gnn
         self._use_orthogonal = args.use_orthogonal
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
@@ -331,7 +333,10 @@ class GR_Critic(nn.Module):
         ]  # (num_nodes, num_node_feats)
         edge_dim = get_shape_from_obs_space(edge_obs_space)[0]  # (edge_dim,)
 
-        # TODO modify output of GNN to be some kind of global aggregation
+        if self.use_att_gnn:
+            from onpolicy.algorithms.utils.gnn import GNNBase
+        else:
+            from onpolicy.algorithms.utils.gnn_transformer import GNNBase
         self.gnn_base = GNNBase(args, node_obs_shape, edge_dim, args.critic_graph_aggr)
         gnn_out_dim = self.gnn_base.out_dim
         # if node aggregation, then concatenate aggregated node features for all agents

@@ -184,7 +184,7 @@ def get_config():
     parser.add_argument("--n_render_rollout_threads", type=int, default=1, help="Number of parallel envs for rendering rollouts")
     parser.add_argument("--num_env_steps", type=int, default=10e6, help="Number of environment steps to train (default: 10e6)")
     parser.add_argument("--user_name", type=str, default="marl", help="[for wandb usage], to specify user's name for simply collecting training data.")
-    parser.add_argument("--use_wandb", action="store_false", default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
+    parser.add_argument("--use_wandb", type=lambda x: bool(strtobool(x)), default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
 
     # env parameters
     parser.add_argument("--env_name", type=str, default="MPE", choices=["MPE", "GraphMPE"], help="specify the name of environment")
@@ -306,6 +306,7 @@ def graph_config(args, parser):
                         help="Whether we want to pull node specific features from the output or perform global_pool on all nodes.")
     parser.add_argument("--global_aggr_type", type=str, default="mean", choices=["mean", "max", "add"], help="The type of aggregation to perform if `graph_aggr` is `global`")
     parser.add_argument("--use_cent_obs", type=lambda x: bool(strtobool(x)), default=True, help="Whether to use centralized observation for critic or not")
+    parser.add_argument("--use_att_gnn", type=lambda x: bool(strtobool(x)), default=True, help="Whether to use attention gnn or transformer gnn")
     parser.add_argument("--auto_mini_batch_size", action="store_true", default=False, help="Whether to automatically set mini batch size")
     parser.add_argument("--target_mini_batch_size", type=int, default=32, help="The target mini batch size to use")
 

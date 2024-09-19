@@ -126,6 +126,7 @@ class GMPERunner(Runner):
                                 self.num_env_steps,
                                 int(total_num_steps / (end - start)),
                                 glv.get_value('CL_ratio')))
+                print("average episode rewards is {}".format(avg_ep_rew))
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)
 

@@ -469,6 +469,8 @@ class Scenario(BaseScenario):
             world.edge_weight = dists[row, col]
         elif world.graph_feat_type == "relative":
             world.edge_weight = dists[row, col]
+        
+        # print(f"Edge List: {world.edge_list}")
 
     def _get_entity_feat_global(self, entity: Entity, world: World) -> arr:
         """

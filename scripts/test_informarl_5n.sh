@@ -20,7 +20,7 @@ seed_max=1
 n_agents=5
 # graph_feat_types=("global" "global" "relative" "relative")
 # cent_obs=("True" "False" "True" "False")
-ep_lens=200
+ep_lens=25
 
 for seed in `seq ${seed_max}`;
 do
@@ -34,18 +34,19 @@ CUDA_VISIBLE_DEVICES='2,3' python  ../onpolicy/scripts/train_mpe.py --use_valuen
 --seed ${seed} \
 --experiment_name "check" \
 --scenario_name "navigation_graph" \
---use_wandb False \
+--use_wandb "True" \
 --num_agents=${n_agents} \
 --collision_rew 5 \
---n_training_threads 16 --n_rollout_threads 32 \
---use_lstm "True" \
---num_mini_batch 16 \
+--n_training_threads 16 --n_rollout_threads 128 \
+--use_lstm "False" \
+--num_mini_batch 64 \
 --episode_length ${ep_lens} \
 --num_env_steps 5000000 \
 --ppo_epoch 15 --use_ReLU --gain 0.01 --lr 7e-4 --critic_lr 7e-4 \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \
-&> $logs_folder/out_${ep_lens}_${seed} \
---auto_mini_batch_size --target_mini_batch_size 16
+--use_att_gnn "True" \
+# &> $logs_folder/out_${ep_lens}_${seed} \
+--auto_mini_batch_size --target_mini_batch_size 128
 done

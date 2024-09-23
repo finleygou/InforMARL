@@ -129,7 +129,7 @@ def modify_args(
     import yaml
 
     with open(str(model_dir) + "/config.yaml") as f:
-        ydict = yaml.load(f)
+        ydict = yaml.load(f, Loader=yaml.SafeLoader)
 
     print("_" * 50)
     for k, v in ydict.items():
@@ -219,7 +219,8 @@ def main(args):
     runner = Runner(config)
     # actor_state_dict = torch.load(str(model_dir) + '/actor.pt')
     # runner.policy.actor.load_state_dict(actor_state_dict)
-    runner.render(True)
+    runner.render()  # showing image
+    # runner.render(True)  # not showing image
 
     # post process
     envs.close()

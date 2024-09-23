@@ -1098,16 +1098,14 @@ class GraphDummyVecEnv(ShareVecEnv):
         for env in self.envs:
             env.close()
 
-    def render(self, mode="rgb_array"):
-        # for remote in self.remotes:
-        #     remote.send(('render', mode))
-        remote = self.remotes[0]  # 对于第一个进程的env使用render
-        remote.send(('render', mode))  # 进程通信，下发render指令
-        if mode == "rgb_array":   
-            # frame = [remote.recv() for remote in self.remotes]
-            # return np.stack(frame) 
-            frame = remote.recv()
-            return frame  # np.array 图像格式
+    def render(self, mode="human"):
+        if mode == "rgb_array":
+            return np.array([env.render(mode=mode) for env in self.envs])
+        elif mode == "human":
+            for env in self.envs:
+                env.render(mode=mode)
+        else:
+            raise NotImplementedError
         
     def set_CL(self, CL_ratio):
         for env in self.envs:

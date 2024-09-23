@@ -16,9 +16,7 @@ from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 
 
-def minibatchGenerator(
-    obs: Tensor, node_obs: Tensor, adj: Tensor, agent_id: Tensor, max_batch_size: int
-):
+def minibatchGenerator(obs: Tensor, node_obs: Tensor, adj: Tensor, agent_id: Tensor, max_batch_size: int):
     """
     Split a big batch into smaller batches.
     """
@@ -170,11 +168,11 @@ class GR_Actor(nn.Module):
             actor_features = []
             for batch in batchGenerator:
                 obs_batch, node_obs_batch, adj_batch, agent_id_batch = batch
-                # print("obs: {.f}, node_obs: {.f}, adj: {.f}, agent_id: {.f}".format(obs_batch, node_obs_batch, adj_batch, agent_id_batch))
-                nbd_feats_batch = self.gnn_base(node_obs_batch, adj_batch, agent_id_batch)
-                act_feats_batch = torch.cat([obs_batch, nbd_feats_batch], dim=1)
-                actor_feats_batch = self.base(act_feats_batch)
-                actor_features.append(actor_feats_batch)
+                if node_obs_batch.shape[0] > 0:
+                    nbd_feats_batch = self.gnn_base(node_obs_batch, adj_batch, agent_id_batch)
+                    act_feats_batch = torch.cat([obs_batch, nbd_feats_batch], dim=1)
+                    actor_feats_batch = self.base(act_feats_batch)
+                    actor_features.append(actor_feats_batch)
             actor_features = torch.cat(actor_features, dim=0)
         else:
             # print("node_obs: {}, adj:{}, id:{}".format(node_obs.shape, adj.shape, agent_id))  # (5,13,7)  (5,13,13)
@@ -248,18 +246,15 @@ class GR_Actor(nn.Module):
         # if batch size is big, split into smaller batches, forward pass and then concatenate
         if (self.split_batch) and (obs.shape[0] > self.max_batch_size):
             # print(f'eval Actor obs: {obs.shape[0]}')
-            batchGenerator = minibatchGenerator(
-                obs, node_obs, adj, agent_id, self.max_batch_size
-            )
+            batchGenerator = minibatchGenerator(obs, node_obs, adj, agent_id, self.max_batch_size)
             actor_features = []
             for batch in batchGenerator:
                 obs_batch, node_obs_batch, adj_batch, agent_id_batch = batch
-                nbd_feats_batch = self.gnn_base(
-                    node_obs_batch, adj_batch, agent_id_batch
-                )
-                act_feats_batch = torch.cat([obs_batch, nbd_feats_batch], dim=1)
-                actor_feats_batch = self.base(act_feats_batch)
-                actor_features.append(actor_feats_batch)
+                if node_obs_batch.shape[0] > 0:    
+                    nbd_feats_batch = self.gnn_base(node_obs_batch, adj_batch, agent_id_batch)
+                    act_feats_batch = torch.cat([obs_batch, nbd_feats_batch], dim=1)
+                    actor_feats_batch = self.base(act_feats_batch)
+                    actor_features.append(actor_feats_batch)
             actor_features = torch.cat(actor_features, dim=0)
         else:
             nbd_features = self.gnn_base(node_obs, adj, agent_id)
@@ -407,27 +402,24 @@ class GR_Critic(nn.Module):
         # if batch size is big, split into smaller batches, forward pass and then concatenate
         if (self.split_batch) and (cent_obs.shape[0] > self.max_batch_size):
             # print(f'Cent obs: {cent_obs.shape[0]}')
-            batchGenerator = minibatchGenerator(
-                cent_obs, node_obs, adj, agent_id, self.max_batch_size
-            )
+            batchGenerator = minibatchGenerator(cent_obs, node_obs, adj, agent_id, self.max_batch_size)
             critic_features = []
             for batch in batchGenerator:
                 obs_batch, node_obs_batch, adj_batch, agent_id_batch = batch
-                nbd_feats_batch = self.gnn_base(
-                    node_obs_batch, adj_batch, agent_id_batch
-                )
-                act_feats_batch = torch.cat([obs_batch, nbd_feats_batch], dim=1)
-                critic_feats_batch = self.base(act_feats_batch)
-                critic_features.append(critic_feats_batch)
+                if node_obs_batch.shape[0] > 0:
+                    # print("node_obs_batch: ", node_obs_batch.shape)
+                    nbd_feats_batch = self.gnn_base(node_obs_batch, adj_batch, agent_id_batch)
+                    if self.args.use_cent_obs:
+                        act_feats_batch = torch.cat([obs_batch, nbd_feats_batch], dim=1)
+                    else: 
+                        act_feats_batch = nbd_feats_batch
+                    critic_feats_batch = self.base(act_feats_batch)
+                    critic_features.append(critic_feats_batch)
             critic_features = torch.cat(critic_features, dim=0)
         else:
-            nbd_features = self.gnn_base(
-                node_obs, adj, agent_id
-            )  # CHECK from where are these agent_ids coming
+            nbd_features = self.gnn_base(node_obs, adj, agent_id)  # CHECK from where are these agent_ids coming
             if self.args.use_cent_obs:
-                critic_features = torch.cat(
-                    [cent_obs, nbd_features], dim=1
-                )  # NOTE can remove concatenation with cent_obs and just use graph_feats
+                critic_features = torch.cat([cent_obs, nbd_features], dim=1)  # NOTE can remove concatenation with cent_obs and just use graph_feats
             else:
                 critic_features = nbd_features
             critic_features = self.base(critic_features)  # Cent obs here

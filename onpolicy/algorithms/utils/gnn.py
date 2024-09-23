@@ -182,6 +182,7 @@ class GNNBase(nn.Module):
 
     def forward(self, node_obs: torch.Tensor, adj: torch.Tensor, agent_id: torch.Tensor):
         batch_size = node_obs.shape[0]
+        # print("batch_size: ", batch_size)
         datalist = []
         for i in range(batch_size):
             edge_index, edge_attr = self.processAdj(adj[i])

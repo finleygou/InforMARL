@@ -212,7 +212,7 @@ def get_config():
     parser.add_argument("--use_feature_normalization", action="store_false", default=True, help="Whether to apply layernorm to the inputs")
     parser.add_argument("--use_orthogonal", action="store_false", default=True, help="Whether to use Orthogonal initialization for weights and 0 initialization for biases")
     parser.add_argument("--gain", type=float, default=0.01, help="The gain # of last action layer")
-    parser.add_argument("--split_batch", action="store_true", default=False, help="Whether to split batch for actor/critic networks")
+    parser.add_argument("--split_batch", type=lambda x: bool(strtobool(x)), default=False, help="Whether to split batch for actor/critic networks")
     parser.add_argument("--max_batch_size", type=int, default=32, help="The max batch size for training. Only matters when --split_batch=True")
 
     # recurrent parameters
@@ -307,7 +307,7 @@ def graph_config(args, parser):
     parser.add_argument("--global_aggr_type", type=str, default="mean", choices=["mean", "max", "add"], help="The type of aggregation to perform if `graph_aggr` is `global`")
     parser.add_argument("--use_cent_obs", type=lambda x: bool(strtobool(x)), default=True, help="Whether to use centralized observation for critic or not")
     parser.add_argument("--use_att_gnn", type=lambda x: bool(strtobool(x)), default=True, help="Whether to use attention gnn or transformer gnn")
-    parser.add_argument("--auto_mini_batch_size", action="store_true", default=False, help="Whether to automatically set mini batch size")
+    parser.add_argument("--auto_mini_batch_size", type=lambda x: bool(strtobool(x)), default=False, help="Whether to automatically set mini batch size")
     parser.add_argument("--target_mini_batch_size", type=int, default=32, help="The target mini batch size to use")
 
     all_args = parser.parse_known_args(args)[0]

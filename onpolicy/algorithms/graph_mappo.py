@@ -10,6 +10,7 @@ from onpolicy.utils.graph_buffer import GraphReplayBuffer
 from onpolicy.utils.util import get_grad_norm, huber_loss, mse_loss
 from onpolicy.utils.valuenorm import ValueNorm
 from onpolicy.algorithms.utils.util import check
+import torch.cuda.amp as amp
 
 
 class GR_MAPPO:
@@ -118,9 +119,7 @@ class GR_MAPPO:
 
         return value_loss
 
-    def ppo_update(
-        self, sample: Tuple, update_actor: bool = True
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    def ppo_update(self, sample: Tuple, update_actor: bool = True) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         """
         Update actor and critic networks.
         sample: (Tuple)
@@ -166,52 +165,56 @@ class GR_MAPPO:
         return_batch = check(return_batch).to(**self.tpdv)
         active_masks_batch = check(active_masks_batch).to(**self.tpdv)
 
-        # Reshape to do in a single forward pass for all steps
-        values, action_log_probs, dist_entropy = self.policy.evaluate_actions(
-            share_obs_batch,
-            obs_batch,
-            node_obs_batch,
-            adj_batch,
-            agent_id_batch,
-            share_agent_id_batch,
-            rnn_states_batch,
-            rnn_states_critic_batch,
-            actions_batch,
-            masks_batch,
-            available_actions_batch,
-            active_masks_batch,
-        )
-        # actor update
-        # print(f'obs: {obs_batch.shape}')
-        # st = time.time()
-        imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
+        actor_backward_time, critic_backward_time = 0, 0
+        scaler = amp.GradScaler()
+        with amp.autocast():
+            # Reshape to do in a single forward pass for all steps
+            values, action_log_probs, dist_entropy = self.policy.evaluate_actions(
+                share_obs_batch,
+                obs_batch,
+                node_obs_batch,
+                adj_batch,
+                agent_id_batch,
+                share_agent_id_batch,
+                rnn_states_batch,
+                rnn_states_critic_batch,
+                actions_batch,
+                masks_batch,
+                available_actions_batch,
+                active_masks_batch,
+            )
+            # actor update
+            # print(f'obs: {obs_batch.shape}')
+            # st = time.time()
+            imp_weights = torch.exp(action_log_probs - old_action_log_probs_batch)
 
-        surr1 = imp_weights * adv_targ
-        surr2 = (
-            torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param)
-            * adv_targ
-        )
-        # print(f'Surr1: {surr1.shape} \t Values: {values.shape}')
+            surr1 = imp_weights * adv_targ
+            surr2 = (
+                torch.clamp(imp_weights, 1.0 - self.clip_param, 1.0 + self.clip_param)
+                * adv_targ
+            )
+            # print(f'Surr1: {surr1.shape} \t Values: {values.shape}')
 
-        if self._use_policy_active_masks:
-            policy_action_loss = (
-                -torch.sum(torch.min(surr1, surr2), dim=-1, keepdim=True)
-                * active_masks_batch
-            ).sum() / active_masks_batch.sum()
-        else:
-            policy_action_loss = -torch.sum(
-                torch.min(surr1, surr2), dim=-1, keepdim=True
-            ).mean()
+            if self._use_policy_active_masks:
+                policy_action_loss = (
+                    -torch.sum(torch.min(surr1, surr2), dim=-1, keepdim=True)
+                    * active_masks_batch
+                ).sum() / active_masks_batch.sum()
+            else:
+                policy_action_loss = -torch.sum(
+                    torch.min(surr1, surr2), dim=-1, keepdim=True
+                ).mean()
 
-        policy_loss = policy_action_loss
+            policy_loss = policy_action_loss
 
         self.policy.actor_optimizer.zero_grad()
         # print(f'Actor Zero grad time: {time.time() - st}')
-        st = time.time()
+        # st = time.time()
 
         if update_actor:
-            (policy_loss - dist_entropy * self.entropy_coef).backward()
-        critic_backward_time = time.time() - st
+            # (policy_loss - dist_entropy * self.entropy_coef).backward()
+            scaler.scale(policy_loss - dist_entropy * self.entropy_coef).backward()
+        # critic_backward_time = time.time() - st
         # print(f'Actor Backward time: {critic_backward_time}')
         # st = time.time()
 
@@ -222,7 +225,10 @@ class GR_MAPPO:
         else:
             actor_grad_norm = get_grad_norm(self.policy.actor.parameters())
 
-        self.policy.actor_optimizer.step()
+        # self.policy.actor_optimizer.step()
+        scaler.step(self.policy.actor_optimizer)
+        scaler.update()
+
         # print(f'Actor Step time: {time.time() - st}')
         # st = time.time()
 
@@ -235,12 +241,15 @@ class GR_MAPPO:
         self.policy.critic_optimizer.zero_grad()
         # print(f'Critic Zero grad time: {time.time() - st}')
 
-        st = time.time()
-        critic_loss = (
-            value_loss * self.value_loss_coef
-        )  # TODO add gradient accumulation here
-        critic_loss.backward()
-        actor_backward_time = time.time() - st
+        # st = time.time()
+
+        # critic_loss = (
+        #     value_loss * self.value_loss_coef
+        # )  # TODO add gradient accumulation here
+        # critic_loss.backward()
+        scaler.scale(value_loss * self.value_loss_coef).backward()
+
+        # actor_backward_time = time.time() - st
         # print(f'Critic Backward time: {actor_backward_time}')
         # st = time.time()
 
@@ -251,7 +260,10 @@ class GR_MAPPO:
         else:
             critic_grad_norm = get_grad_norm(self.policy.critic.parameters())
 
-        self.policy.critic_optimizer.step()
+        # self.policy.critic_optimizer.step()
+        scaler.step(self.policy.critic_optimizer)
+        scaler.update()
+
         # print(f'Critic Step time: {time.time() - st}')
         # print('_'*50)
 

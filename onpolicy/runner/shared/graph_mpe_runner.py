@@ -511,6 +511,7 @@ class GMPERunner(Runner):
 
         if not get_metrics:
             if self.all_args.save_gifs:
+                print("saving gif to:", str(self.gif_dir) + "/render.gif")
                 imageio.mimsave(
                     str(self.gif_dir) + "/render.gif",
                     all_frames,

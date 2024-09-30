@@ -9,7 +9,7 @@ n_agents=5
 # cent_obs=("True" "False" "True" "False")
 ep_lens=30
 save_data=False
-save_gifs=False
+save_gifs="False"
 
 for seed in `seq ${seed_max}`;
 do
@@ -24,6 +24,7 @@ CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/eval_mpe.py --use_valuenorm
 --experiment_name "check" \
 --scenario_name "navigation_graph" \
 --use_wandb "False" \
+--save_gifs ${save_gifs} \
 --use_render "True" \
 --num_agents=${n_agents} \
 --collision_rew 5 \

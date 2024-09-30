@@ -51,8 +51,8 @@ class MultiAgentBaseEnv(gym.Env):
         self.done_callback = done_callback
         self.scenario_name = scenario_name
         # environment parameters
-        # self.discrete_action_space = True
-        self.discrete_action_space = discrete_action
+        self.discrete_action_space = False
+        # self.discrete_action_space = discrete_action
 
         # if true, action is a number 0...N,
         # otherwise action is a one-hot N-dimensional vector
@@ -239,6 +239,8 @@ class MultiAgentBaseEnv(gym.Env):
                     action[0][:] = 0.0
                     action[0][d] = 1.0
                 if self.discrete_action_space:
+                    # if agent.id==0:
+                    #     print("action: ", action)
                     agent.action.u[0] += action[0][1] - action[0][2]
                     agent.action.u[1] += action[0][3] - action[0][4]
                 else:
@@ -259,6 +261,9 @@ class MultiAgentBaseEnv(gym.Env):
             action = action[1:]
         # make sure we used all elements of action
         assert len(action) == 0
+
+        # if agent.id==0:
+            # print("action_space: {}, action:{}", action_space, agent.action.u)
 
     def _set_CL(self, CL_ratio):
         # 通过多进程set value，与env_wrapper直接关联，不能改。

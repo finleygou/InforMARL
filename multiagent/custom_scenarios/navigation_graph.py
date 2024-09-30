@@ -470,7 +470,10 @@ class Scenario(BaseScenario):
         elif world.graph_feat_type == "relative":
             world.edge_weight = dists[row, col]
         
+        # print(f"Edge List: {len(world.edge_list.T)}")
         # print(f"Edge List: {world.edge_list}")
+        # print(f"cached_dist_vect: {world.cached_dist_vect}")
+        # print(f"cached_dist_mag: {world.cached_dist_mag}")
 
     def _get_entity_feat_global(self, entity: Entity, world: World) -> arr:
         """

@@ -1,3 +1,4 @@
+import argparse
 import gym
 from gym import spaces
 import numpy as np
@@ -7,6 +8,8 @@ from typing import Callable, List, Tuple, Dict, Union, Optional
 from multiagent.core import World, Agent
 from multiagent.multi_discrete import MultiDiscrete
 from onpolicy import global_var as glv
+from .guide_policy import guide_policy, set_JS_curriculum, limit_action_inf_norm
+import csv
 
 # update bounds to center around agent
 cam_range = 2
@@ -23,6 +26,7 @@ class MultiAgentBaseEnv(gym.Env):
 
     def __init__(
         self,
+        args: argparse.Namespace,
         world: World,
         reset_callback: Callable = None,
         reward_callback: Callable = None,
@@ -33,6 +37,19 @@ class MultiAgentBaseEnv(gym.Env):
         discrete_action: bool = True,
         scenario_name: str = "navigation",
     ) -> None:
+        
+        self.args = args
+        self.use_policy = args.use_policy
+        self.gp_type = args.gp_type
+        self.use_CL = args.use_curriculum
+        self.CL_ratio = 0
+        self.Cp = args.guide_cp
+        self.js_ratio = args.js_ratio
+        self.JS_thre = 0  # step of guide steps
+
+        # terminate
+        self.is_terminate = False
+
         self.world = world
         self.world_length = self.world.world_length
         self.current_step = 0
@@ -50,6 +67,7 @@ class MultiAgentBaseEnv(gym.Env):
         self.info_callback = info_callback
         self.done_callback = done_callback
         self.scenario_name = scenario_name
+        self.policy_u = guide_policy
         # environment parameters
         self.discrete_action_space = False
         # self.discrete_action_space = discrete_action
@@ -82,12 +100,7 @@ class MultiAgentBaseEnv(gym.Env):
             if self.discrete_action_space:
                 u_action_space = spaces.Discrete(world.dim_p * 2 + 1)
             else:
-                u_action_space = spaces.Box(
-                    low=-agent.u_range,
-                    high=+agent.u_range,
-                    shape=(world.dim_p,),
-                    dtype=np.float32,
-                )
+                u_action_space = MultiDiscrete([[0, 19], [0, 19]])  # -1~1, 20 values
             if agent.movable:
                 total_action_space.append(u_action_space)
 
@@ -99,8 +112,6 @@ class MultiAgentBaseEnv(gym.Env):
                     low=0.0, high=1.0, shape=(world.dim_c,), dtype=np.float32
                 )
 
-            if not agent.silent:
-                total_action_space.append(c_action_space)
             # total action space
             if len(total_action_space) > 1:
                 # all action spaces are discrete,
@@ -201,9 +212,7 @@ class MultiAgentBaseEnv(gym.Env):
         return self.reward_callback(agent, self.world)
 
     # set env action for a particular agent
-    def _set_action(
-        self, action, agent: Agent, action_space, time: Optional = None
-    ) -> None:
+    def _set_action(self, action, policy_u, agent: Agent, action_space, time: Optional = None) -> None:
         agent.action.u = np.zeros(self.world.dim_p)
         agent.action.c = np.zeros(self.world.dim_c)
         # process action
@@ -218,52 +227,42 @@ class MultiAgentBaseEnv(gym.Env):
         else:
             action = [action]
 
-        # actions: [None, ←, →, ↓, ↑, comm1, comm2]
+        
         if agent.movable:
-            # physical action
-            # print(f'discrete_action_input: {self.discrete_action_input}, force_discrete_action: {self.force_discrete_action}, discrete_action_space: {self.discrete_action_space}')
-            if self.discrete_action_input:
-                agent.action.u = np.zeros(self.world.dim_p)
-                # process discrete action
-                if action[0] == 1:
-                    agent.action.u[0] = -1.0
-                if action[0] == 2:
-                    agent.action.u[0] = +1.0
-                if action[0] == 3:
-                    agent.action.u[1] = -1.0
-                if action[0] == 4:
-                    agent.action.u[1] = +1.0
-            else:
-                if self.force_discrete_action:
-                    d = np.argmax(action[0])
-                    action[0][:] = 0.0
-                    action[0][d] = 1.0
-                if self.discrete_action_space:
-                    # if agent.id==0:
-                    #     print("action: ", action)
-                    agent.action.u[0] += action[0][1] - action[0][2]
-                    agent.action.u[1] += action[0][3] - action[0][4]
-                else:
-                    agent.action.u = action[0]
-            sensitivity = 5.0
-            if agent.accel is not None:
-                sensitivity = agent.accel
-            agent.action.u *= sensitivity
-            # NOTE: refer offpolicy/envs/mpe/environment.py -> MultiAgentEnv._set_action() for non-silent agent
-            action = action[1:]
-        if not agent.silent:
-            # communication action
-            if self.discrete_action_input:
-                agent.action.c = np.zeros(self.world.dim_c)
-                agent.action.c[action[0]] = 1.0
-            else:
-                agent.action.c = action[0]
-            action = action[1:]
-        # make sure we used all elements of action
-        assert len(action) == 0
+            
+            action_mapping = np.linspace(-1, 1, 20)
+            ux = np.dot(action[0], action_mapping)
+            uy = np.dot(action[1], action_mapping)
 
-        # if agent.id==0:
-            # print("action_space: {}, action:{}", action_space, agent.action.u)
+            network_output = np.array([ux, uy])
+            policy_output = (policy_u.T)[0]
+
+            if agent.done:  # only navigation may use
+                if (self.use_CL and self.CL_ratio > self.Cp) or self.use_policy:
+                    # agent decellerate to zero
+                    target_v = np.linalg.norm(agent.state.p_vel)
+                    if target_v < 1e-3:
+                        acc = np.array([0,0])
+                    else:
+                        acc = -agent.state.p_vel/target_v*agent.max_accel*1.1
+                    network_output[0], network_output[1] = acc[0], acc[1]
+                    policy_output = network_output
+
+            if self.use_CL == True:
+                if self.CL_ratio < self.Cp:
+                    if self.current_step < self.JS_thre:
+                        agent.action.u = policy_output
+                    else:
+                        agent.action.u = network_output
+                else:
+                    act = network_output
+                    agent.action.u = limit_action_inf_norm(act, 1)
+            elif self.use_policy:
+                agent.action.u = policy_output
+            else: 
+                act = network_output
+                agent.action.u = limit_action_inf_norm(act, 1) 
+
 
     def _set_CL(self, CL_ratio):
         # 通过多进程set value，与env_wrapper直接关联，不能改。
@@ -471,6 +470,194 @@ class MultiAgentBaseEnv(gym.Env):
         return dx
 
 
+class MultiAgentGraphEnv(MultiAgentBaseEnv):
+    metadata = {"render.modes": ["human", "rgb_array"]}
+    """
+        Parameters:
+        –––––––––––
+        world: World
+            World for the environment. Refer `multiagent/core.py`
+        reset_callback: Callable
+            Reset function for the environment. Refer `reset()` in 
+            `multiagent/navigation_graph.py`
+        reward_callback: Callable
+            Reward function for the environment. Refer `reward()` in 
+            `multiagent/navigation_graph.py`
+        observation_callback: Callable
+            Observation function for the environment. Refer `observation()` 
+            in `multiagent/navigation_graph.py`
+        graph_observation_callback: Callable
+            Observation function for graph_related stuff in the environment. 
+            Refer `graph_observation()` in `multiagent/navigation_graph.py`
+        id_callback: Callable
+            A function to get the id of the agent in graph
+            Refer `get_id()` in `multiagent/navigation_graph.py`
+        info_callback: Callable
+            Reset function for the environment. Refer `info_callback()` in 
+            `multiagent/navigation_graph.py`
+        done_callback: Callable
+            Reset function for the environment. Refer `done()` in 
+            `multiagent/navigation_graph.py`
+        update_graph: Callable
+            A function to update the graph structure in the environment
+            Refer `update_graph()` in `multiagent/navigation_graph.py`
+        shared_viewer: bool
+            If we want a shared viewer for rendering the environment or 
+            individual windows for each agent as the ego
+        discrete_action: bool
+            If the action space is discrete or not
+        scenario_name: str
+            Name of the scenario to be loaded. Refer `multiagent/custom_scenarios.py`
+    """
+
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        world: World,
+        reset_callback: Callable = None,
+        reward_callback: Callable = None,
+        observation_callback: Callable = None,
+        graph_observation_callback: Callable = None,
+        id_callback: Callable = None,
+        info_callback: Callable = None,
+        done_callback: Callable = None,
+        update_graph: Callable = None,
+        shared_viewer: bool = True,
+        discrete_action: bool = True,
+        scenario_name: str = "navigation",
+    ) -> None:
+        super(MultiAgentGraphEnv, self).__init__(
+            args,
+            world,
+            reset_callback,
+            reward_callback,
+            observation_callback,
+            info_callback,
+            done_callback,
+            shared_viewer,
+            discrete_action,
+            scenario_name,
+        )
+        self.update_graph = update_graph
+        self.graph_observation_callback = graph_observation_callback
+        self.id_callback = id_callback
+        self.set_graph_obs_space()
+
+    def set_graph_obs_space(self):
+        self.node_observation_space = []
+        self.adj_observation_space = []
+        self.edge_observation_space = []
+        self.agent_id_observation_space = []
+        self.share_agent_id_observation_space = []
+        num_agents = len(self.agents)
+        for agent in self.agents:
+            node_obs, adj = self.graph_observation_callback(agent, self.world)
+            node_obs_dim = node_obs.shape
+            adj_dim = adj.shape
+            edge_dim = 1  # NOTE hardcoding edge dimension
+            agent_id_dim = 1  # NOTE hardcoding agent id dimension
+            self.node_observation_space.append(
+                spaces.Box(
+                    low=-np.inf, high=+np.inf, shape=node_obs_dim, dtype=np.float32
+                )
+            )
+            self.adj_observation_space.append(
+                spaces.Box(low=-np.inf, high=+np.inf, shape=adj_dim, dtype=np.float32)
+            )
+            self.edge_observation_space.append(
+                spaces.Box(
+                    low=-np.inf, high=+np.inf, shape=(edge_dim,), dtype=np.float32
+                )
+            )
+            self.agent_id_observation_space.append(
+                spaces.Box(
+                    low=-np.inf, high=+np.inf, shape=(agent_id_dim,), dtype=np.float32
+                )
+            )
+            self.share_agent_id_observation_space.append(
+                spaces.Box(
+                    low=-np.inf,
+                    high=+np.inf,
+                    shape=(num_agents * agent_id_dim,),
+                    dtype=np.float32,
+                )
+            )
+        
+        # print("node_observation_space: ", self.node_observation_space[0])  # (13, 7)
+        # print("edge_observation_space: ", self.edge_observation_space[0])  # (1, )
+        # print("adj_observation_space: ", self.adj_observation_space[0])  # (13, 13)
+
+    def step(self, action_n: List) -> Tuple[List, List, List, List, List, List, List]:
+        if self.update_graph is not None:
+            self.update_graph(self.world)
+        self.current_step += 1
+        obs_n, reward_n, done_n, info_n = [], [], [], []
+        node_obs_n, adj_n, agent_id_n = [], [], []
+        self.world.current_time_step += 1
+        self.agents = self.world.policy_agents
+        self.JS_thre = int(self.world_length*self.js_ratio*set_JS_curriculum(self.CL_ratio/self.Cp))
+
+        # set action for each agent
+        policy_u = self.policy_u(self.world, self.gp_type)
+        for i, agent in enumerate(self.agents):  # adversaries only
+            self._set_action(action_n[i], policy_u[i], agent, self.action_space[i])
+
+        # advance world state
+        self.world.step()
+        # record observation for each agent
+        for agent in self.agents:
+            obs_n.append(self._get_obs(agent))
+            agent_id_n.append(self._get_id(agent))
+            node_obs, adj = self._get_graph_obs(agent)
+            node_obs_n.append(node_obs)
+            adj_n.append(adj)
+            reward = self._get_reward(agent)
+            reward_n.append(reward)
+            done_n.append(self._get_done(agent))
+            info = {"individual_reward": reward}
+            env_info = self._get_info(agent)
+            info.update(env_info)  # nothing fancy here, just appending dict to dict
+            info_n.append(info)
+
+        # all agents get total reward in cooperative case
+        reward = np.sum(reward_n)
+        if self.shared_reward:
+            reward_n = [[reward]] * self.n  # NOTE this line is similar to PPOEnv
+
+        # print("node_obs_n: ", node_obs_n[0])
+        # print("adj_n: ", adj_n[0])
+        # print("agent_id_n: ", agent_id_n[0])
+
+        return obs_n, agent_id_n, node_obs_n, adj_n, reward_n, done_n, info_n
+
+    def reset(self) -> Tuple[List, List, List, List]:
+        self.current_step = 0
+        # reset world
+        self.reset_callback(self.world)
+        # reset renderer
+        self._reset_render()
+        # record observations for each agent
+        obs_n, node_obs_n, adj_n, agent_id_n = [], [], [], []
+        self.agents = self.world.policy_agents
+        for agent in self.agents:
+            obs_n.append(self._get_obs(agent))
+            agent_id_n.append(self._get_id(agent))
+            node_obs, adj = self._get_graph_obs(agent)
+            node_obs_n.append(node_obs)
+            adj_n.append(adj)
+        return obs_n, agent_id_n, node_obs_n, adj_n
+
+    def _get_graph_obs(self, agent: Agent):
+        if self.graph_observation_callback is None:
+            return None, None, None
+        return self.graph_observation_callback(agent, self.world)
+
+    def _get_id(self, agent: Agent):
+        if self.id_callback is None:
+            return None
+        return self.id_callback(agent)
+
+'''
 class MultiAgentOrigEnv(MultiAgentBaseEnv):
     metadata = {"render.modes": ["human", "rgb_array"]}
     """
@@ -677,187 +864,6 @@ class MultiAgentPPOEnv(MultiAgentBaseEnv):
             obs_n.append(self._get_obs(agent))
         return obs_n
 
-
-class MultiAgentGraphEnv(MultiAgentBaseEnv):
-    metadata = {"render.modes": ["human", "rgb_array"]}
-    """
-        Parameters:
-        –––––––––––
-        world: World
-            World for the environment. Refer `multiagent/core.py`
-        reset_callback: Callable
-            Reset function for the environment. Refer `reset()` in 
-            `multiagent/navigation_graph.py`
-        reward_callback: Callable
-            Reward function for the environment. Refer `reward()` in 
-            `multiagent/navigation_graph.py`
-        observation_callback: Callable
-            Observation function for the environment. Refer `observation()` 
-            in `multiagent/navigation_graph.py`
-        graph_observation_callback: Callable
-            Observation function for graph_related stuff in the environment. 
-            Refer `graph_observation()` in `multiagent/navigation_graph.py`
-        id_callback: Callable
-            A function to get the id of the agent in graph
-            Refer `get_id()` in `multiagent/navigation_graph.py`
-        info_callback: Callable
-            Reset function for the environment. Refer `info_callback()` in 
-            `multiagent/navigation_graph.py`
-        done_callback: Callable
-            Reset function for the environment. Refer `done()` in 
-            `multiagent/navigation_graph.py`
-        update_graph: Callable
-            A function to update the graph structure in the environment
-            Refer `update_graph()` in `multiagent/navigation_graph.py`
-        shared_viewer: bool
-            If we want a shared viewer for rendering the environment or 
-            individual windows for each agent as the ego
-        discrete_action: bool
-            If the action space is discrete or not
-        scenario_name: str
-            Name of the scenario to be loaded. Refer `multiagent/custom_scenarios.py`
-    """
-
-    def __init__(
-        self,
-        world: World,
-        reset_callback: Callable = None,
-        reward_callback: Callable = None,
-        observation_callback: Callable = None,
-        graph_observation_callback: Callable = None,
-        id_callback: Callable = None,
-        info_callback: Callable = None,
-        done_callback: Callable = None,
-        update_graph: Callable = None,
-        shared_viewer: bool = True,
-        discrete_action: bool = True,
-        scenario_name: str = "navigation",
-    ) -> None:
-        super(MultiAgentGraphEnv, self).__init__(
-            world,
-            reset_callback,
-            reward_callback,
-            observation_callback,
-            info_callback,
-            done_callback,
-            shared_viewer,
-            discrete_action,
-            scenario_name,
-        )
-        self.update_graph = update_graph
-        self.graph_observation_callback = graph_observation_callback
-        self.id_callback = id_callback
-        self.set_graph_obs_space()
-
-    def set_graph_obs_space(self):
-        self.node_observation_space = []
-        self.adj_observation_space = []
-        self.edge_observation_space = []
-        self.agent_id_observation_space = []
-        self.share_agent_id_observation_space = []
-        num_agents = len(self.agents)
-        for agent in self.agents:
-            node_obs, adj = self.graph_observation_callback(agent, self.world)
-            node_obs_dim = node_obs.shape
-            adj_dim = adj.shape
-            edge_dim = 1  # NOTE hardcoding edge dimension
-            agent_id_dim = 1  # NOTE hardcoding agent id dimension
-            self.node_observation_space.append(
-                spaces.Box(
-                    low=-np.inf, high=+np.inf, shape=node_obs_dim, dtype=np.float32
-                )
-            )
-            self.adj_observation_space.append(
-                spaces.Box(low=-np.inf, high=+np.inf, shape=adj_dim, dtype=np.float32)
-            )
-            self.edge_observation_space.append(
-                spaces.Box(
-                    low=-np.inf, high=+np.inf, shape=(edge_dim,), dtype=np.float32
-                )
-            )
-            self.agent_id_observation_space.append(
-                spaces.Box(
-                    low=-np.inf, high=+np.inf, shape=(agent_id_dim,), dtype=np.float32
-                )
-            )
-            self.share_agent_id_observation_space.append(
-                spaces.Box(
-                    low=-np.inf,
-                    high=+np.inf,
-                    shape=(num_agents * agent_id_dim,),
-                    dtype=np.float32,
-                )
-            )
-        
-        # print("node_observation_space: ", self.node_observation_space[0])  # (13, 7)
-        # print("edge_observation_space: ", self.edge_observation_space[0])  # (1, )
-        # print("adj_observation_space: ", self.adj_observation_space[0])  # (13, 13)
-
-    def step(self, action_n: List) -> Tuple[List, List, List, List, List, List, List]:
-        if self.update_graph is not None:
-            self.update_graph(self.world)
-        self.current_step += 1
-        obs_n, reward_n, done_n, info_n = [], [], [], []
-        node_obs_n, adj_n, agent_id_n = [], [], []
-        self.world.current_time_step += 1
-        self.agents = self.world.policy_agents
-        # set action for each agent
-        for i, agent in enumerate(self.agents):
-            self._set_action(action_n[i], agent, self.action_space[i])
-        # advance world state
-        self.world.step()
-        # record observation for each agent
-        for agent in self.agents:
-            obs_n.append(self._get_obs(agent))
-            agent_id_n.append(self._get_id(agent))
-            node_obs, adj = self._get_graph_obs(agent)
-            node_obs_n.append(node_obs)
-            adj_n.append(adj)
-            reward = self._get_reward(agent)
-            reward_n.append(reward)
-            done_n.append(self._get_done(agent))
-            info = {"individual_reward": reward}
-            env_info = self._get_info(agent)
-            info.update(env_info)  # nothing fancy here, just appending dict to dict
-            info_n.append(info)
-
-        # all agents get total reward in cooperative case
-        reward = np.sum(reward_n)
-        if self.shared_reward:
-            reward_n = [[reward]] * self.n  # NOTE this line is similar to PPOEnv
-
-        # print("node_obs_n: ", node_obs_n[0])
-        # print("adj_n: ", adj_n[0])
-        # print("agent_id_n: ", agent_id_n[0])
-
-        return obs_n, agent_id_n, node_obs_n, adj_n, reward_n, done_n, info_n
-
-    def reset(self) -> Tuple[List, List, List, List]:
-        self.current_step = 0
-        # reset world
-        self.reset_callback(self.world)
-        # reset renderer
-        self._reset_render()
-        # record observations for each agent
-        obs_n, node_obs_n, adj_n, agent_id_n = [], [], [], []
-        self.agents = self.world.policy_agents
-        for agent in self.agents:
-            obs_n.append(self._get_obs(agent))
-            agent_id_n.append(self._get_id(agent))
-            node_obs, adj = self._get_graph_obs(agent)
-            node_obs_n.append(node_obs)
-            adj_n.append(adj)
-        return obs_n, agent_id_n, node_obs_n, adj_n
-
-    def _get_graph_obs(self, agent: Agent):
-        if self.graph_observation_callback is None:
-            return None, None, None
-        return self.graph_observation_callback(agent, self.world)
-
-    def _get_id(self, agent: Agent):
-        if self.id_callback is None:
-            return None
-        return self.id_callback(agent)
 
 
 class MultiAgentGPGEnv(MultiAgentGraphEnv):
@@ -1498,3 +1504,5 @@ class BatchMultiAgentEnv(gym.Env):
         for env in self.env_batch:
             results_n += env.render(mode, close)
         return results_n
+
+'''

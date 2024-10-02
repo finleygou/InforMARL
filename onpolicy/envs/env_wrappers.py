@@ -391,6 +391,8 @@ def shareworker(remote, parent_remote, env_fn_wrapper):
                 remote.send(fr)
             elif data == "human":
                 env.render(mode=data)
+        elif cmd == 'set_cl':
+            env._set_CL(data)
         elif cmd == "close":
             env.close()
             remote.close()
@@ -520,6 +522,8 @@ def choosesimpleworker(remote, parent_remote, env_fn_wrapper):
                 remote.send(fr)
             elif data == "human":
                 env.render(mode=data)
+        elif cmd == 'set_cl':
+            env._set_CL(data)
         elif cmd == "get_spaces":
             remote.send(
                 (env.observation_space, env.share_observation_space, env.action_space)
@@ -601,6 +605,10 @@ class ChooseSimpleSubprocVecEnv(ShareVecEnv):
         for p in self.ps:
             p.join()
         self.closed = True
+    
+    def set_CL(self, CL_ratio):
+        for remote in self.remotes:
+            remote.send(('set_cl', CL_ratio))
 
 
 def chooseworker(remote, parent_remote, env_fn_wrapper):
@@ -623,6 +631,8 @@ def chooseworker(remote, parent_remote, env_fn_wrapper):
             break
         elif cmd == "render":
             remote.send(env.render(mode="rgb_array"))
+        elif cmd == "set_cl":
+            remote.send(env._set_CL(data))
         elif cmd == "get_spaces":
             remote.send(
                 (env.observation_space, env.share_observation_space, env.action_space)

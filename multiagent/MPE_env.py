@@ -72,6 +72,7 @@ def GraphMPEEnv(args):
 
     # create multiagent environment
     env = MultiAgentGraphEnv(
+        args=args,
         world=world,
         reset_callback=scenario.reset_world,
         reward_callback=scenario.reward,

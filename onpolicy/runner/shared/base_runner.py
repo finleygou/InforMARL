@@ -29,7 +29,7 @@ class Runner(object):
         self.num_agents = config["num_agents"]
         # total entites is agents + goals + obstacles
         self.num_entities = (
-            self.num_agents + self.num_agents + self.all_args.num_obstacles
+            self.num_agents + self.all_args.num_target + self.all_args.num_obstacle + self.all_args.num_dynamic_obs
         )
         if config.__contains__("render_envs"):
             self.render_envs = config["render_envs"]

@@ -55,6 +55,7 @@ class GMPERunner(Runner):
             glv.set_value('CL_ratio', episode/episodes)  #curriculum learning
             self.envs.set_CL(glv.get_value('CL_ratio'))  # env_wrapper
             for step in range(self.episode_length):
+                # print("step:", step)
                 # Sample actions
                 (
                     values,

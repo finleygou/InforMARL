@@ -1,5 +1,6 @@
 import numpy as np
-
+import seaborn as sns
+from .custom_scenarios.util import *
 
 # physical/external base state of all entites
 class EntityState(object):
@@ -16,6 +17,13 @@ class AgentState(EntityState):
         super(AgentState, self).__init__()
         # communication utterance
         self.c = None
+        # physical angle
+        self.phi = 0  # 0-2pi
+        # physical angular velocity
+        self.p_omg = 0
+        self.last_a = np.array([0, 0])
+        # norm of physical velocity
+        self.V = 0
 
 
 # action of the agent
@@ -56,6 +64,7 @@ class Entity(object):
         self.name = ""
         # properties:
         self.size = 0.050
+        self.R = 1.0  # for compatible purposes, the same as size
         # entity can move / be pushed
         self.movable = False
         # entity collides with others
@@ -68,6 +77,8 @@ class Entity(object):
         self.color = None
         # max speed and accel
         self.max_speed = None
+        self.max_angular = None
+        self.max_accel = None
         self.accel = None
         # state
         self.state = EntityState()
@@ -91,6 +102,7 @@ class Landmark(Entity):
 class Agent(Entity):
     def __init__(self):
         super(Agent, self).__init__()
+        self.name = "agent"
         # agent are adversary
         self.adversary = False
         # agent are dummy
@@ -118,6 +130,31 @@ class Agent(Entity):
         # time passed for each agent
         self.t = 0.0
 
+        self.goal = None  # goal position
+        self.done = False
+        self.is_leader = False
+        self.policy_action = np.array([0,0])
+        self.network_action = np.array([0,0])
+
+class Target(Agent):
+    def __init__(self):
+        super(Target, self).__init__()
+        self.name = 'target'
+
+
+class Obstacle(Entity):
+    def __init__(self):
+        super(Obstacle, self).__init__()
+        self.name = 'obstacle'
+        self.delta = None
+        self.Ls = None
+        self.movable = False
+
+class DynamicObstacle(Agent):
+    def __init__(self):
+        super(DynamicObstacle, self).__init__()
+        self.name = 'dynamic_obstacle'
+        self.delta = None
 
 # multi-agent world
 class World(object):
@@ -128,10 +165,12 @@ class World(object):
         self.graph_feat_type = None
         self.edge_weight = None
         # list of agents and entities (can change at execution-time!)
-        self.agents = []
+        self.agents = []  # all moving stuff: egos, dynamic_obstacles, targets
+        self.egos = []
+        self.targets = []
+        self.obstacles = []
+        self.dynamic_obstacles = []
         self.landmarks = []
-        self.scripted_agents = []
-        self.scripted_agents_goals = []
         self.obstacles, self.walls = [], []
         self.belief_targets = []
         # communication channel dimensionality
@@ -151,21 +190,27 @@ class World(object):
         self.cache_dists = False
         self.cached_dist_vect = None
         self.cached_dist_mag = None
+        self.world_length = 200
+        self.current_time_step = 0
+        self.num_agents = 0
+        self.num_obstacles = 0
+        self.max_edge_dist = 1.2
 
     # return all entities in the world
     @property
     def entities(self):
-        return self.agents + self.landmarks + self.obstacles
+        return self.egos + self.targets + self.dynamic_obstacles + self.obstacles
+        # return self.agents + self.landmarks + self.obstacles
 
     # return all agents controllable by external policies
     @property
     def policy_agents(self):
-        return self.agents
-        # return [agent for agent in self.agents if agent.action_callback is None]
+        # return self.agents
+        return [agent for agent in self.agents if agent.action_callback is None]
 
     # return all agents controlled by world scripts
     @property
-    def get_scripted_agents(self):
+    def scripted_agents(self):
         return [agent for agent in self.agents if agent.action_callback is not None]
 
     def calculate_distances(self):
@@ -202,6 +247,16 @@ class World(object):
                 if agent.name == f"agent {id}":
                     return agent
             raise ValueError(f"Agent with id: {id} doesn't exist in the world")
+        if entity_type == "target":
+            for target in self.targets:
+                if target.name == f"target {id}":
+                    return target
+            raise ValueError(f"Target with id: {id} doesn't exist in the world")
+        if entity_type == "dynamic_obstacle":
+            for dynamic_obstacle in self.dynamic_obstacles:
+                if dynamic_obstacle.name == f"dynamic_obstacle {id}":
+                    return dynamic_obstacle
+            raise ValueError(f"Dynamic obstacle with id: {id} doesn't exist in the world")
         if entity_type == "landmark":
             for landmark in self.landmarks:
                 if landmark.name == f"landmark {id}":
@@ -216,23 +271,79 @@ class World(object):
     # update state of the world
     def step(self):
         # set actions for scripted agents
-        for agent in self.scripted_agents:
-            agent.t += self.dt
-            agent.action = agent.action_callback(agent, self)
+        for i, agent in enumerate(self.agents):
+            if agent.name == 'target':
+                action = agent.action_callback(agent, self.egos, self.obstacles, self.dynamic_obstacles)
+                agent.action = action
+                # print("agent {} action is {}".format(agent.id, action))
+            elif agent.name == 'dynamic_obstacle':
+                action = agent.action_callback(agent, self.obstacles)
+                agent.action = action
+                # print("agent {} action is {}".format(agent.id, action))
+
         # gather forces applied to entities
-        p_force = [None] * len(self.entities)
+        u = [None] * len(self.agents)  # store action of all moving entities
         # apply agent physical controls
-        p_force = self.apply_action_force(p_force)
-        # apply environment forces
-        p_force = self.apply_environment_force(p_force)
+        u = self.apply_action_force(u)
         # integrate physical state
-        self.integrate_state(p_force)
-        # update agent state
-        for agent in self.agents:
-            agent.t += self.dt
-            self.update_agent_state(agent)
+        self.integrate_state(u)
+
+        # # calculate and store distances between all entities
         if self.cache_dists:
             self.calculate_distances()
+
+    # gather agent action forces
+    def apply_action_force(self, u):
+        # set applied forces
+        '''
+        for egos, u = [ax, ay]; 
+        for others, u = [Vx, Vy];
+        '''
+        for i, agent in enumerate(self.agents):
+            u[i] = agent.action.u
+        return u
+
+    def integrate_state(self, u):  # u:[[1*2]...] 1*2n, [[ax, ay]...]
+        for i, agent in enumerate(self.agents):   
+            agent.t += self.dt         
+            if agent.name == "agent":  # u = [vx, vy], -1~1
+                a_x = u[i][0]*agent.max_accel
+                a_y = u[i][1]*agent.max_accel
+                v_x = agent.state.p_vel[0] + a_x*self.dt
+                v_y = agent.state.p_vel[1] + a_y*self.dt
+                if abs(v_x) > agent.max_speed:
+                    v_x = agent.max_speed if agent.state.p_vel[0]>0 else -agent.max_speed
+                if abs(v_y) > agent.max_speed:
+                    v_y = agent.max_speed if agent.state.p_vel[1]>0 else -agent.max_speed
+                v_next = np.array([v_x, v_y])
+                theta = np.arctan2(v_y, v_x)
+                if theta < 0:
+                    theta += np.pi*2 
+                # update phi
+                agent.state.phi = theta
+                # update p_pos
+                agent.state.p_pos += agent.state.p_vel * self.dt  # last v
+                # update acc
+                agent.state.last_a = np.array([a_x, a_y])
+                # update p_vel
+                agent.state.p_vel = v_next
+            else:  # u = [Vx, Vy]
+                # the keneitic model of scripted agents are realized in simple_scenarios
+                if agent.done == True:
+                    agent.state.p_vel = np.array([0, 0])
+                else:
+                    v_x, v_y = u[i][0], u[i][1]
+                    theta = np.arctan2(v_y, v_x)
+                    if theta < 0:
+                        theta += np.pi*2 
+                    # update phi
+                    agent.state.phi = theta
+                    agent.state.p_vel = np.array([u[i][0], u[i][1]])
+                agent.state.p_pos += agent.state.p_vel * self.dt
+        
+
+    '''
+    # this part is the original model of inforMARL project
 
     # gather agent action forces
     def apply_action_force(self, p_force):
@@ -309,7 +420,8 @@ class World(object):
                 else 0.0
             )
             agent.state.c = agent.action.c + noise
-
+    '''
+    
     # get collision forces for any contact between two entities
     # NOTE: this is better than using get_collision_force() since
     # it takes into account if the entity is movable or not

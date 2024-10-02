@@ -176,7 +176,7 @@ def get_config():
     parser.add_argument("--project_name", type=str, default="test", help="project name to store logs under")
     parser.add_argument("--experiment_name", type=str, default="check", help="an identifier to distinguish different experiment.")
     parser.add_argument("--seed", type=int, default=1, help="Random seed for numpy/torch")
-    parser.add_argument("--cuda", action="store_false", default=True, help="by default True, will use GPU to train; or else will use CPU;")
+    parser.add_argument("--cuda", default=True, help="by default True, will use GPU to train; or else will use CPU;")
     parser.add_argument("--cuda_deterministic", action="store_false", default=True, help="by default, make sure random seed effective. if set, bypass such function.")
     parser.add_argument("--n_training_threads", type=int, default=1, help="Number of torch threads for training")
     parser.add_argument("--n_rollout_threads", type=int, default=32, help="Number of parallel envs for training rollouts")
@@ -192,7 +192,6 @@ def get_config():
     parser.add_argument("--world_size", type=float, default=2, help="The world size of MPE; it will range from -world_size/2 to world_size/2")
     parser.add_argument("--num_scripted_agents", type=int, default=0, help="The number of scripted agents in MPE")
     parser.add_argument("--obs_type", type=str, choices=["local", "global", "nbd"], default="global", help="Whether to use local obs for navigation.py")
-    parser.add_argument("--max_edge_dist", type=float, default=1, help="Maximum distance above which edges cannot be connected between the entities; used for `obs_type==ndb_obs` or for graph version")
     parser.add_argument("--num_nbd_entities", type=int, default=3, help="Number of entities to be considered as neighbors for `obs_type==ndb_obs`")
     parser.add_argument("--use_comm", type=lambda x: bool(strtobool(x)), default=False, help="Whether to use communication channel for agent observation")
 
@@ -247,6 +246,14 @@ def get_config():
         help="by default True, whether to mask " "useless data in policy loss.",)
     parser.add_argument("--huber_delta", type=float, default=10.0, help=" coefficience of huber loss.")
 
+    
+    # curriculum learning parameters
+    parser.add_argument("--use_policy", type=lambda x: bool(strtobool(x)), default=True, help="use the fixed policy to conduct tasks")
+    parser.add_argument("--use_curriculum", type=lambda x: bool(strtobool(x)), default=False, help='use curriculum learning during training')
+    parser.add_argument("--guide_cp", type=float, default=0.6, help='the proportion of guide policy over the whole training')
+    parser.add_argument("--cp", type=float, default=0.6, help='cp used in simple scenarios')
+    parser.add_argument("--js_ratio", type=float, default=0.8, help='the threshold of the curriculum')
+
     # run parameters
     parser.add_argument("--use_linear_lr_decay", action="store_true", default=False, help="use a linear schedule on the learning rate")
     parser.add_argument("--use_train_render", default=False, help='render environment while training')
@@ -270,13 +277,26 @@ def get_config():
     parser.add_argument("--render_episodes", type=int, default=5, help="the number of episodes to render a given env")
     parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
     parser.add_argument("--render_eval", action="store_true", default=False, help="by default, do not render while evaluating. If set, render video.")
-    parser.add_argument("--save_data", type=bool, default=False, help='use to save data in rendering')
+    parser.add_argument("--save_data", type=lambda x: bool(strtobool(x)), default=False, help='use to save data in rendering')
    
     # pretrained parameters
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
     
     # misc parameters
     parser.add_argument("--verbose", action="store_false", default=True, help="by default, print args and network at the beginning.")
+
+    # scenario settings
+    parser.add_argument("--max_edge_dist", type=float, default=1.5, help="Maximum distance above which edges cannot be connected between the entities")
+    parser.add_argument("--num_target", type=int, default=0, help="the number of targets")
+    parser.add_argument("--num_obstacle", type=int, default=4, help="the number of obstacles")
+    parser.add_argument("--num_dynamic_obs", type=int, default=4, help="the number of dynamic obstacles")
+    parser.add_argument("--num_agents", type=int, default=4, help="the number of agents")
+    parser.add_argument('--scenario_name', type=str,
+                        default='simple_formation_4agts', help="Which scenario to run on")
+    parser.add_argument("--gp_type", type=str,
+                        default='formation', choices=["formation", "encirclement", "navigation"
+                                                       "formation_rvo", "encirclement_rvo", "navigation_rvo"], 
+                                                       help="the choose of guide policy")
 
     return parser
 
@@ -286,7 +306,7 @@ def graph_config(args, parser):
     # num_agents = tmp_args.num_agents
     # https://mmuratarat.github.io/2019-06-12/embeddings-with-numeric-variables-Keras#:~:text=Jeremy%20Howard%20provides%20a%20general,number%20of%20categories%2F2).&text=However%2C%20literature%20shows%20that%20embedding,produces%20the%20most%20accurate%20results.
     # https://datascience.stackexchange.com/questions/31109/ratio-between-embedded-vector-dimensions-and-vocabulary-size
-    entity_mapping = {"agent": 0, "landmark": 1, "obstacle": 2}
+    entity_mapping = {"agent": 0, "target": 1, "dynamic_obstacle": 2, "obstacle": 3}
     num_entities = len(entity_mapping.keys())
     embedding_size = (num_entities) // 2 + 1
     parser.add_argument("--num_embeddings", type=int, default=num_entities, help="Number of entity types in the env to have different embeddings for each entity type")

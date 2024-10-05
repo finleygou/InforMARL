@@ -53,17 +53,6 @@ def make_render_env(all_args: argparse.Namespace):
 
 def parse_args(args, parser):
     parser.add_argument(
-        "--scenario_name",
-        type=str,
-        default="simple_spread",
-        help="Which scenario to run on",
-    )
-    parser.add_argument("--num_landmarks", type=int, default=3)
-    parser.add_argument("--num_agents", type=int, default=2, help="number of players")
-    parser.add_argument(
-        "--num_obstacles", type=int, default=3, help="Number of obstacles"
-    )
-    parser.add_argument(
         "--collaborative",
         type=lambda x: bool(strtobool(x)),
         default=True,
@@ -96,14 +85,6 @@ def parse_args(args, parser):
         help="The minimum distance threshold to classify whether "
         "agent has reached the goal or not",
     )
-    parser.add_argument(
-        "--use_dones",
-        type=lambda x: bool(strtobool(x)),
-        default=False,
-        help="Whether we want to use the 'done=True' "
-        "when agent has reached the goal or just return False like "
-        "the `simple.py` or `simple_spread.py`",
-    )
 
     all_args = parser.parse_known_args(args)[0]
 
@@ -126,23 +107,23 @@ def modify_args(
     """
     Modify the args used to train the model
     """
-    import yaml
+    # import yaml
 
-    with open(str(model_dir) + "/config.yaml") as f:
-        ydict = yaml.load(f, Loader=yaml.SafeLoader)
+    # with open(str(model_dir) + "/config.yaml") as f:
+    #     ydict = yaml.load(f, Loader=yaml.SafeLoader)
 
-    print("_" * 50)
-    for k, v in ydict.items():
-        if k in exclude_args:
-            print(f"Using {k} = {vars(args)[k]}")
-            # print(f"Skipping {k} with value {args.k}")
-            continue
-        # all args have 'values' and 'desc' as keys
-        if type(v) == dict:
-            if "value" in v.keys():
-                # print(f'Setting attr {k} to {ydict[k]["value"]}')
-                setattr(args, k, ydict[k]["value"])
-    print("_" * 50)
+    # print("_" * 50)
+    # for k, v in ydict.items():
+    #     if k in exclude_args:
+    #         print(f"Using {k} = {vars(args)[k]}")
+    #         # print(f"Skipping {k} with value {args.k}")
+    #         continue
+    #     # all args have 'values' and 'desc' as keys
+    #     if type(v) == dict:
+    #         if "value" in v.keys():
+    #             # print(f'Setting attr {k} to {ydict[k]["value"]}')
+    #             setattr(args, k, ydict[k]["value"])
+    # print("_" * 50)
 
     # set some args manually
     args.cuda = False
@@ -155,10 +136,13 @@ def modify_args(
 
 
 def main(args):
-    # model_dir = 'trained_models/navigation/Navigation/rmappo/wandb/offline-run-20210720_220614-1eqhk4l1/files'
     parser = get_config()
     all_args = parse_args(args, parser)
-    all_args = modify_args(all_args.model_dir, all_args)
+    # all_args = modify_args(all_args.model_dir, all_args)
+    if all_args.env_name == "GraphMPE":
+        from onpolicy.config import graph_config
+
+        all_args, parser = graph_config(args, parser)
 
     if all_args.algorithm_name == "rmappo" or all_args.algorithm_name == "rmappg":
         assert (

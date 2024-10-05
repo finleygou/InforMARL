@@ -1,5 +1,5 @@
 """
-4 egos
+6 egos
 4 obstacles
 4 dynamic obstacles
 """
@@ -104,9 +104,9 @@ class Scenario(BaseScenario):
         world.num_obstacle_collisions = np.zeros(self.num_egos)
         world.num_agent_collisions = np.zeros(self.num_egos)
 
-        init_pos_ego = np.array([[0., 0.], [-1.0, 0.], [0., 1.0], [1.0, 0.]])
+        init_pos_ego = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 1.414], [0.707, 0.707], [1.414, 0.]])
         init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
-        H = np.array([[0., 0.], [-1.0, 0.], [0., 1.0], [1.0, 0.]])
+        H = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 0.707], [0.707, 0.707], [1.414, 0.]])
         for i, ego in enumerate(world.egos):
             if i==0:
                 ego.is_leader = True
@@ -131,8 +131,8 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
-        init_pos_obs = np.array([[-1.5, 1.5], [-0.8, 3.8], [0.4, 2.6], [1.8, 0.9]])
-        self.sizes_obs = np.array([0.19, 0.25, 0.24, 0.22])
+        init_pos_obs = np.array([[-1.1, 1.7], [-1.3, 4.3], [-0.3, 3.1], [0.8, 2.7]])
+        self.sizes_obs = np.array([0.19, 0.25, 0.18, 0.22])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -312,7 +312,7 @@ class Scenario(BaseScenario):
 
         if leader.done and 0 <= e_f_value <= self.target_band:
             r_ca += 50
-
+                
         rew = r_fom + r_ca
 
         return rew

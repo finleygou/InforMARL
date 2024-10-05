@@ -1,13 +1,17 @@
 import numpy as np  
 
 # guide_policy.py
-def set_JS_curriculum(CL_ratio):
-    # func_ = 1-CL_ratio
-    k = 2.0
-    delta = 1-(np.exp(-k*(-1))-np.exp(k*(-1)))/(np.exp(-k*(-1))+np.exp(k*(-1)))
-    x = 2*CL_ratio-1
-    y_mid = (np.exp(-k*x)-np.exp(k*x))/(np.exp(-k*x)+np.exp(k*x))-delta*x**3
-    func_ = (y_mid+1)/2
+def set_JS_curriculum(CL_ratio, gp_type):
+    if gp_type == "formation":
+        func_ = 1-CL_ratio
+    elif gp_type == "encirclement":
+        k = 2.0
+        delta = 1-(np.exp(-k*(-1))-np.exp(k*(-1)))/(np.exp(-k*(-1))+np.exp(k*(-1)))
+        x = 2*CL_ratio-1
+        y_mid = (np.exp(-k*x)-np.exp(k*x))/(np.exp(-k*x)+np.exp(k*x))-delta*x**3
+        func_ = (y_mid+1)/2
+    elif gp_type == "navigation":
+        func_ = 1-CL_ratio
     return func_
 
 def guide_policy(world, gp_type):
@@ -65,7 +69,7 @@ def guide_policy_formation(world):
         sum_evj = np.array([0., 0.])
         for nb_ego in neighbors_ego:
             sum_epj = sum_epj + k3 * ((ego.state.p_pos - ego.formation_vector) - (nb_ego.state.p_pos - nb_ego.formation_vector))
-            sum_evj = sum_evj + k3 * (ego.state.p_pos - nb_ego.state.p_pos)
+            sum_evj = sum_evj + k3 * (ego.state.p_vel - nb_ego.state.p_vel)
 
         epL = ego.state.p_pos - leader.state.p_pos - ego.formation_vector
         evL = ego.state.p_vel - leader.state.p_vel
@@ -190,7 +194,6 @@ def guide_policy_encirclement(world):
                 relative_speed_in_r_dir = np.dot(relative_velocity, r_ij) / norm_r_ij
                 if relative_speed_in_r_dir < 0:
                     f_dobs = f_dobs + k_obs * (Ls - norm_r_ij) / norm_r_ij * r_ij
-
 
         u_i = f_c + f_r + f_obs + f_dobs - k_b*ego.state.p_vel
 

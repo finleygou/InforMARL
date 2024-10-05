@@ -12,7 +12,7 @@ from .guide_policy import guide_policy, set_JS_curriculum, limit_action_inf_norm
 import csv
 
 # update bounds to center around agent
-cam_range = 2
+cam_range = 8
 
 
 # environment for all agents in the multiagent world
@@ -323,7 +323,11 @@ class MultiAgentBaseEnv(gym.Env):
             self.comm_geoms = []
 
             for entity in self.world.entities:
-                geom = rendering.make_circle(entity.size)
+                if entity.name=="obstacle":
+                    radius = entity.R
+                else:
+                    radius = entity.size
+                geom = rendering.make_circle(radius)  # drawing entity 
                 xform = rendering.Transform()
 
                 entity_comm_geoms = []
@@ -405,12 +409,13 @@ class MultiAgentBaseEnv(gym.Env):
                 pos = np.zeros(self.world.dim_p)
             else:
                 pos = self.agents[i].state.p_pos
-            self.viewers[i].set_bounds(
-                pos[0] - cam_range,
-                pos[0] + cam_range,
-                pos[1] - cam_range,
-                pos[1] + cam_range,
-            )
+            # self.viewers[i].set_bounds(
+            #     pos[0] - cam_range,
+            #     pos[0] + cam_range,
+            #     pos[1] - cam_range,
+            #     pos[1] + cam_range,
+            # )
+            self.viewers[i].set_bounds(-10, 10, -5, 15)
             # update geometry positions
             for e, entity in enumerate(self.world.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
@@ -595,7 +600,9 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
         node_obs_n, adj_n, agent_id_n = [], [], []
         self.world.current_time_step += 1
         self.agents = self.world.policy_agents
-        self.JS_thre = int(self.world_length*self.js_ratio*set_JS_curriculum(self.CL_ratio/self.Cp))
+        self.JS_thre = int(self.world_length*self.js_ratio*set_JS_curriculum(self.CL_ratio/self.Cp, self.gp_type))
+
+        # print("step: ", self.current_step)
 
         # set action for each agent
         policy_u = self.policy_u(self.world, self.gp_type)
@@ -611,9 +618,9 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
             node_obs, adj = self._get_graph_obs(agent)
             node_obs_n.append(node_obs)
             adj_n.append(adj)
+            done_n.append(self._get_done(agent))
             reward = self._get_reward(agent)
             reward_n.append(reward)
-            done_n.append(self._get_done(agent))
             info = {"individual_reward": reward}
             env_info = self._get_info(agent)
             info.update(env_info)  # nothing fancy here, just appending dict to dict

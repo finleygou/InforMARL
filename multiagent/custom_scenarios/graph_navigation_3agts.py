@@ -1,5 +1,5 @@
 """
-4 egos
+3 egos
 4 obstacles
 4 dynamic obstacles
 """
@@ -14,7 +14,7 @@ from scipy import sparse
 sys.path.append(os.path.abspath(os.getcwd()))
 from multiagent.custom_scenarios.util import *
 
-from multiagent.core import World, Agent, Entity, Obstacle, DynamicObstacle
+from multiagent.core import World, Agent, Entity, Target, Obstacle, DynamicObstacle
 from multiagent.scenario import BaseScenario
 
 entity_mapping = {"agent": 0, "target": 1, "dynamic_obstacle": 2, "obstacle": 3}
@@ -23,15 +23,15 @@ class Scenario(BaseScenario):
 
     def __init__(self) -> None:
         super().__init__()
-        self.init_band = 0.6
-        self.target_band = 0.15
-        self.error_band = self.target_band
+        self.band_init = 0.4
+        self.band_target = 0.05
+        self.d_lft_band = self.band_target
 
     def make_world(self, args: argparse.Namespace) -> World:
         # pull params from args
         self.cp = args.cp
-        self.use_CL = args.use_curriculum  # 是否使用课程式训练(render时改为false)
-        self.num_egos = args.num_agents  # formation agents
+        self.use_CL = args.use_curriculum
+        self.num_egos = args.num_agents
         self.num_target = args.num_target
         self.num_obs = args.num_obstacle
         self.num_dynamic_obs = args.num_dynamic_obs
@@ -58,7 +58,7 @@ class Scenario(BaseScenario):
         world.egos = [Agent() for i in range(self.num_egos)]
         world.obstacles = [Obstacle() for i in range(self.num_obs)]
         world.dynamic_obstacles = [DynamicObstacle() for i in range(self.num_dynamic_obs)]
-        world.agents = world.egos + world.dynamic_obstacles
+        world.agents = world.egos + world.targets + world.dynamic_obstacles
         
         # add agents
         global_id = 0
@@ -66,7 +66,7 @@ class Scenario(BaseScenario):
             ego.id = i
             ego.size = 0.12
             ego.R = ego.size
-            ego.color = np.array([0.95, 0.45, 0.45])
+            # ego.color = np.array([0.95, 0.45, 0.45])
             ego.max_speed = 0.5
             ego.max_accel = 0.5
             ego.global_id = global_id
@@ -104,21 +104,22 @@ class Scenario(BaseScenario):
         world.num_obstacle_collisions = np.zeros(self.num_egos)
         world.num_agent_collisions = np.zeros(self.num_egos)
 
-        init_pos_ego = np.array([[0., 0.], [-1.0, 0.], [0., 1.0], [1.0, 0.]])
+        self.assign_list = rand_assign_targets(self.num_egos, self.num_egos)
+        goal_pos = np.array([[-0.9, 3.6], [0.1, 4.0], [1.1, 4.4]])
+        init_pos_ego = np.array([[-0.8, 0.], [0.0, 0.0], [0.8, 0.0]])
         init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
-        H = np.array([[0., 0.], [-1.0, 0.], [0., 1.0], [1.0, 0.]])
+        color_list = [np.array([0.95, 0.45, 0.45]), np.array([0.95, 0.95, 0.00]), 
+                      np.array([0.45, 0.95, 0.45]), np.array([0.95, 0.75, 0.80]),
+                      np.array([0.45, 0.0, 0.45]), np.array([0.6, 0.4, 0.2])]
         for i, ego in enumerate(world.egos):
-            if i==0:
-                ego.is_leader = True
-                ego.goal = np.array([0., 8.])
-            else:
-                ego.goal = np.array([0., 8.]) + H[i]
             ego.done = False
             ego.state.p_pos = init_pos_ego[i]
             ego.state.p_vel = np.array([0.0, 0.0])
             ego.state.V = np.linalg.norm(ego.state.p_vel)
             ego.state.phi = np.pi
-            ego.formation_vector = H[i]
+            ego.goal = goal_pos[self.assign_list[i]] 
+            ego.color = color_list[i]
+            ego.goal_color = color_list[i]
 
         init_pos_d_obs = np.array([[-3., 5.], [3., 3.5], [-3., 8.], [3., 6.5]])
         init_direction = np.array([[1., -0.5], [-1., -0.5], [1., -0.5], [-1., -0.5]])
@@ -131,8 +132,8 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
-        init_pos_obs = np.array([[-1.5, 1.5], [-0.8, 3.8], [0.4, 2.6], [1.8, 0.9]])
-        self.sizes_obs = np.array([0.19, 0.25, 0.24, 0.22])
+        init_pos_obs = np.array([[-1.4, 0.8], [-0.2, 1.0], [0.1, 2.4], [1.5, 0.7]])
+        sizes_obs = np.array([0.16, 0.18, 0.2, 0.24])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -171,22 +172,11 @@ class Scenario(BaseScenario):
                 d_obs.delta = 0.05
 
         if CL_ratio < self.cp:
-            self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
+            self.d_lft_band = self.band_init - (self.band_init - self.band_target)*CL_ratio/self.cp
         else:
-            self.error_band = self.target_band
+            self.d_lft_band = self.band_target
 
     def info_callback(self, agent: Agent, world: World) -> Tuple:
-        # # TODO modify this
-        rew = 0
-        collisions = 0
-        occupied_landmarks = 0
-        goal = agent.goal
-        dist = np.sqrt(np.sum(np.square(agent.state.p_pos - goal)))
-        world.dist_left_to_goal[agent.id] = dist
-        # only update times_required for the first time it reaches the goal
-        if dist < 0.1 and (world.times_required[agent.id] == -1):
-            world.times_required[agent.id] = world.current_time_step * world.dt
-
         if agent.collide:
             if self.is_obstacle_collision(agent.state.p_pos, agent.R, world):
                 world.num_obstacle_collisions[agent.id] += 1
@@ -197,8 +187,8 @@ class Scenario(BaseScenario):
                     world.num_agent_collisions[agent.id] += 1
 
         agent_info = {
-            "Dist_to_goal": world.dist_left_to_goal[agent.id],
-            "Time_req_to_goal": world.times_required[agent.id],
+            # "Dist_to_goal": world.dist_left_to_goal[agent.id],
+            # "Time_req_to_goal": world.times_required[agent.id],
             "Num_agent_collisions": world.num_agent_collisions[agent.id],
             "Num_obst_collisions": world.num_obstacle_collisions[agent.id],
         }
@@ -223,106 +213,54 @@ class Scenario(BaseScenario):
     def is_collision(self, agent1: Agent, agent2: Agent) -> bool:
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
         dist = np.linalg.norm(delta_pos)
-        dist_min = agent1.size + agent2.size
+        dist_min = agent1.R + agent2.R + (agent1.delta + agent2.delta)*0.2
         return True if dist < dist_min else False
 
     # done condition for each agent
     def done(self, agent: Agent, world: World) -> bool:
-        if agent.is_leader:
-            dist = np.linalg.norm(agent.state.p_pos - agent.goal)
-            if dist < 0.5:
-                agent.done = True
-                return True
-        else:
-            for ego in world.egos:
-                if ego.is_leader:
-                    if ego.done:
-                        agent.done = True
-                        return True
-        agent.done = False
-
+        dist = np.linalg.norm(agent.state.p_pos - agent.goal)
+        if dist < self.d_lft_band:
+            agent.done = True
+            return True
+        else:  agent.done = False
         return False
 
-    def reward(self, ego: Agent, world: World) -> float:
-        # Agents are rewarded based on distance to
-        # its landmark, penalized for collisions
+    def reward(self, agent: Agent, world: World) -> float:
         if self.use_CL:
             self.set_CL(glv.get_value('CL_ratio'), world)
-
-        egos = world.egos
-        leader = [e for e in egos if e.is_leader][0]
-        dynamic_obstacles = world.dynamic_obstacles
-        obstacles = world.obstacles
-
-        edge_list = world.edge_list.tolist()
-        edge_num = len(edge_list[1]) 
-
-        neighbors_id = []  # the neighbor id of all entities, global id
-        for j in range(edge_num):
-            if int(edge_list[0][j]) == ego.global_id:
-                neighbors_id.append(edge_list[1][j])
-            if int(edge_list[0][j]) > ego.global_id:
-                break
-
-        neighbors_ego = [e for e in egos if e.global_id in neighbors_id]
-        neighbors_dobs = [d for d in dynamic_obstacles if d.global_id in neighbors_id]
-        neighbors_obs = [o for o in obstacles if o.global_id in neighbors_id]
-
-        k1 = 0.5  # pos coefficient
-        k2 = 0.1  # vel coefficient
-        k3 = 0.3  # neighbor coefficient
-        sum_epj = np.array([0., 0.])
-        sum_evj = np.array([0., 0.])
-        for nb_ego in neighbors_ego:
-            sum_epj = sum_epj + k3 * ((ego.state.p_pos - ego.formation_vector) - (nb_ego.state.p_pos - nb_ego.formation_vector))
-            sum_evj = sum_evj + k3 * (ego.state.p_vel - nb_ego.state.p_vel)
-
-        epL = ego.state.p_pos - leader.state.p_pos - ego.formation_vector
-        evL = ego.state.p_vel - leader.state.p_vel
-
-        e_f = k1 * (epL + k3 * sum_epj) + k2 * (evL + k3 * sum_evj)
-        e_f_value = np.linalg.norm(e_f)
-
-        # formation reward
-        if 0 <= e_f_value <= self.error_band:
-            r_fom = 2
-        elif self.error_band < e_f_value <= 1:
-            r_fom = -np.tanh(e_f_value*7.5 - 3)
-        elif 1 < e_f_value <= 2:
-            r_fom = -1
-        else:
-            r_fom = -2
         
-        # collision reward
-        r_ca = 0
-        penalty = 50
-        for obs in neighbors_obs:
-            d_ij = np.linalg.norm(ego.state.p_pos - obs.state.p_pos)
-            if d_ij < ego.R + obs.R:
-                r_ca += -1*penalty
-            elif d_ij < ego.R + obs.R + 0.25*obs.delta:
-                r_ca += (-0.5 - (ego.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
+        egos = world.egos
+        obstacles = world.obstacles
+        dynamic_obstacles = world.dynamic_obstacles
 
-        for dobs in neighbors_dobs:
-            d_ij = np.linalg.norm(ego.state.p_pos - dobs.state.p_pos)
-            if d_ij < ego.R + dobs.R:
-                r_ca += -1*penalty
-            elif d_ij < ego.R + dobs.R + 0.25*dobs.delta:
-                r_ca += (-0.5 - (ego.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
+        k = 0.3
+        dist_to_goal = np.linalg.norm(agent.state.p_pos - agent.goal)
+        r_d = np.exp(-k*dist_to_goal)
+        if dist_to_goal<self.d_lft_band:
+            r_d += 5
+      
+        r_l = 0
+        for ego in egos:
+            if ego == agent: pass
+            else:
+                if self.is_collision(agent, ego):
+                    r_l += -5
+        for obs in obstacles:
+            if self.is_collision(agent, obs):
+                r_l += -5
+        for d_obs in dynamic_obstacles:
+            if self.is_collision(agent, d_obs):
+                r_l += -5
 
-        if leader.done and 0 <= e_f_value <= self.target_band:
-            r_ca += 10
+        r_step = r_l
 
-        rew = r_fom + r_ca
-
-        return rew
+        return r_step
 
     def observation(self, agent: Agent, world: World) -> arr:
         """
         Return:
             [agent_pos, agent_vel, goal_pos]
         """
-        # get positions of all entities in this agent's reference frame
         goal_pos = []
         goal_pos.append(agent.goal - agent.state.p_pos)
         return np.concatenate([agent.state.p_pos, agent.state.p_vel] + goal_pos)  # dim = 6

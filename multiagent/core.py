@@ -135,10 +135,12 @@ class Agent(Entity):
         self.is_leader = False
         self.policy_action = np.array([0,0])
         self.network_action = np.array([0,0])
+        self.delta = 0.1
 
 class Target(Agent):
     def __init__(self):
         super(Target, self).__init__()
+        self.delta = 0.1
         self.name = 'target'
 
 

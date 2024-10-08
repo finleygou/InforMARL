@@ -207,11 +207,7 @@ def main(args):
             config=all_args,
             project=all_args.project_name,
             notes=socket.gethostname(),
-            name=str(all_args.algorithm_name)
-            + "_"
-            + str(all_args.scenario_name)
-            + "_seed"
-            + str(all_args.seed),
+            name=str(all_args.scenario_name),
             group=all_args.scenario_name,
             dir=str(run_dir),
             job_type="training",

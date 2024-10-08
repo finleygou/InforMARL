@@ -19,22 +19,25 @@ CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py --use_valuenor
 --seed ${seed} \
 --experiment_name "check" \
 --scenario_name "graph_formation_4agts" \
+--hid_size 64 \
+--layer_N 2 \
 --num_target 0 \
 --num_agents 4 \
 --num_obstacle 4 \
 --num_dynamic_obs 4 \
 --gp_type "formation" \
 --save_data "True" \
---reward_file_name "r_formation_4agts-v1" \
+--reward_file_name "r_formation_4agts-v2" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.6 --cp 0.4 --js_ratio 0.6 \
+--guide_cp 0.5 --cp 0.4 --js_ratio 0.6 \
 --use_wandb "True" \
 --num_agents=${n_agents} \
 --n_training_threads 16 --n_rollout_threads 32 \
 --use_lstm "True" \
 --episode_length ${ep_lens} \
---num_env_steps 4000000 \
+--num_env_steps 5000000 \
+--data_chunk_length 20 \
 --ppo_epoch 15 --use_ReLU --gain 0.01 --lr 2e-4 --critic_lr 2e-4 \
 --user_name "finleygou" \
 --use_cent_obs "False" \

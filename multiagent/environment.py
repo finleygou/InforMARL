@@ -265,8 +265,6 @@ class MultiAgentBaseEnv(gym.Env):
 
 
     def _set_CL(self, CL_ratio):
-        # 通过多进程set value，与env_wrapper直接关联，不能改。
-        # 此处glv是这个进程中的！与mperunner中的并不共用。
         glv.set_value('CL_ratio', CL_ratio)
         self.CL_ratio = glv.get_value('CL_ratio')
 
@@ -625,6 +623,25 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
             env_info = self._get_info(agent)
             info.update(env_info)  # nothing fancy here, just appending dict to dict
             info_n.append(info)
+
+        # supervise dones number and check terminate
+        terminate = []
+        if 'formation' in self.gp_type:
+            if any(done_n):
+                terminate = [True] * self.n
+            else:
+                terminate = [False] * self.n
+        elif 'encirclement' in self.gp_type:
+            terminate = done_n
+        elif 'navigation' in self.gp_type:
+            if all(done_n):
+                terminate = [True] * self.n
+            else:
+                terminate = [False] * self.n
+            
+        self.is_terminate = True if all(terminate) else False
+        if self.is_terminate:
+            done_n = [True] * self.n
 
         # all agents get total reward in cooperative case
         reward = np.sum(reward_n)

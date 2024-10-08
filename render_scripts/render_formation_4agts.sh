@@ -30,11 +30,11 @@ do
     --n_rollout_threads 1 \
     --use_lstm "True" \
     --episode_length ${ep_lens} \
-    --render_episodes 5 \
+    --render_episodes 10 \
     --ppo_epoch 15 --use_ReLU --gain 0.01 \
     --user_name "finleygou" \
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "True" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_4agts/rmappo/check/wandb/run-20241002_213657-g4fyapn0/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_4agts/rmappo/check/wandb/run-20241005_113037-itglnhqa/files/"
 done

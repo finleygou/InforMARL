@@ -52,7 +52,8 @@ class GMPERunner(Runner):
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
 
-            glv.set_value('CL_ratio', episode/episodes)  #curriculum learning
+            CL_ratio = episode/episodes
+            glv.set_value('CL_ratio', CL_ratio)  #curriculum learning
             self.envs.set_CL(glv.get_value('CL_ratio'))  # env_wrapper
             for step in range(self.episode_length):
                 # print("step:", step)
@@ -126,7 +127,7 @@ class GMPERunner(Runner):
                                 total_num_steps,
                                 self.num_env_steps,
                                 int(total_num_steps / (end - start)),
-                                glv.get_value('CL_ratio')))
+                                format(glv.get_value('CL_ratio'), '.3f')))
                 print("average episode rewards is {}".format(avg_ep_rew))
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)

@@ -2,15 +2,15 @@ import numpy as np
 
 # guide_policy.py
 def set_JS_curriculum(CL_ratio, gp_type):
-    if gp_type == "formation":
+    if "formation" in gp_type:
         func_ = 1-CL_ratio
-    elif gp_type == "encirclement":
-        k = 2.0
+    elif "encirclement" in gp_type:
+        k = 1.8
         delta = 1-(np.exp(-k*(-1))-np.exp(k*(-1)))/(np.exp(-k*(-1))+np.exp(k*(-1)))
         x = 2*CL_ratio-1
         y_mid = (np.exp(-k*x)-np.exp(k*x))/(np.exp(-k*x)+np.exp(k*x))-delta*x**3
         func_ = (y_mid+1)/2
-    elif gp_type == "navigation":
+    elif "navigation" in gp_type:
         func_ = 1-CL_ratio
     return func_
 

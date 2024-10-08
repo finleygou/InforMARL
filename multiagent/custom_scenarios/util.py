@@ -77,7 +77,7 @@ def find_neighbors(agent, adversary, target):
         angle_ = Get_antiClockAngle(agent_vec, neighbor_vec)
         if np.isnan(angle_):
             # print("angle_list_error. agent_vec:{}, nb_vec:{}".format(agent_vec, neighbor_vec))
-            if adv.i==0:
+            if adv.id==0:
                 print("tp{:.3f} tv:{:.3f}".format(target.state.p_pos, target.state.p_vel))
                 print("0p{:.1f} 0v:{:.1f}".format(adversary[0].state.p_pos, adversary[0].state.p_vel))
                 print("1p{:.3f} 1v:{:.3f}".format(adversary[1].state.p_pos, adversary[1].state.p_vel))

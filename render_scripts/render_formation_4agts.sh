@@ -18,11 +18,14 @@ do
     --seed ${seed} \
     --experiment_name "check" \
     --scenario_name "graph_formation_4agts" \
+    --hidden_size 64 \
+    --layer_N 2 \
     --use_wandb "False" \
     --save_gifs "${save_gifs}" \
     --use_render "True" \
     --save_data "False" \
-    --use_curriculum "${use_curriculum}" \
+    --use_curriculum "False" \
+    --use_policy "False" \
     --num_target 0 \
     --num_agents 4 \
     --num_obstacle 4 \
@@ -36,5 +39,5 @@ do
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "True" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_4agts/rmappo/check/wandb/run-20241005_113037-itglnhqa/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_4agts/rmappo/check/wandb/run-20241006_233504-jl43nucm/files/"
 done

@@ -23,8 +23,8 @@ class Scenario(BaseScenario):
 
     def __init__(self) -> None:
         super().__init__()
-        self.band_init = 0.4
-        self.band_target = 0.05
+        self.band_init = 0.3
+        self.band_target = 0.1
         self.d_lft_band = self.band_target
 
     def make_world(self, args: argparse.Namespace) -> World:
@@ -121,7 +121,7 @@ class Scenario(BaseScenario):
             ego.color = color_list[i]
             ego.goal_color = color_list[i]
 
-        init_pos_d_obs = np.array([[-3., 5.], [3., 3.5], [-3., 8.], [3., 6.5]])
+        init_pos_d_obs = np.array([[-3., 4.2], [3., 3.7], [-3., 7.0], [3., 6.5]])
         init_direction = np.array([[1., -0.5], [-1., -0.5], [1., -0.5], [-1., -0.5]])
         for i, d_obs in enumerate(world.dynamic_obstacles):
             d_obs.done = False
@@ -132,8 +132,8 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
-        init_pos_obs = np.array([[-1.4, 0.8], [-0.2, 1.0], [0.1, 2.4], [1.5, 0.7]])
-        sizes_obs = np.array([0.16, 0.18, 0.2, 0.24])
+        init_pos_obs = np.array([[-1.4, 0.7], [-0.2, 1.0], [0.1, 2.4], [1.4, 0.6]])
+        self.sizes_obs = np.array([0.16, 0.18, 0.2, 0.17])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -187,8 +187,8 @@ class Scenario(BaseScenario):
                     world.num_agent_collisions[agent.id] += 1
 
         agent_info = {
-            # "Dist_to_goal": world.dist_left_to_goal[agent.id],
-            # "Time_req_to_goal": world.times_required[agent.id],
+            "Dist_to_goal": world.dist_left_to_goal[agent.id],
+            "Time_req_to_goal": world.times_required[agent.id],
             "Num_agent_collisions": world.num_agent_collisions[agent.id],
             "Num_obst_collisions": world.num_obstacle_collisions[agent.id],
         }
@@ -239,20 +239,23 @@ class Scenario(BaseScenario):
         if dist_to_goal<self.d_lft_band:
             r_d += 5
       
-        r_l = 0
+        r_ca = 0
+        penalty = 1
         for ego in egos:
             if ego == agent: pass
             else:
                 if self.is_collision(agent, ego):
-                    r_l += -5
+                    r_ca += -1*penalty
         for obs in obstacles:
             if self.is_collision(agent, obs):
-                r_l += -5
+                r_ca += -1*penalty
         for d_obs in dynamic_obstacles:
             if self.is_collision(agent, d_obs):
-                r_l += -5
+                r_ca += -1*penalty
 
-        r_step = r_l
+        r_step = r_d + r_ca
+
+        agent.done = self.done(agent, world)
 
         return r_step
 
@@ -389,7 +392,7 @@ def dobs_policy(agent, obstacles):
                 nearest_obs = obs
         if d_min < 1.0:
             d_vec_ij = agent.state.p_pos - nearest_obs.state.p_pos
-            d_vec_ij = 0.5 * d_vec_ij / np.linalg.norm(d_vec_ij) / (np.linalg.norm(d_vec_ij) - nearest_obs.R - agent.R)
+            d_vec_ij = 1.0 * d_vec_ij / np.linalg.norm(d_vec_ij) / (np.linalg.norm(d_vec_ij) - nearest_obs.R - agent.R)
             if np.dot(d_vec_ij, esp_direction) < 0:
                 d_vec_ij = d_vec_ij - np.dot(d_vec_ij, esp_direction) / np.dot(esp_direction, esp_direction) * esp_direction
         else:

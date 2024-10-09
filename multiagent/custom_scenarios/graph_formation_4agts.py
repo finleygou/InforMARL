@@ -23,8 +23,8 @@ class Scenario(BaseScenario):
 
     def __init__(self) -> None:
         super().__init__()
-        self.init_band = 0.6
-        self.target_band = 0.15
+        self.init_band = 0.15
+        self.target_band = 0.08
         self.error_band = self.target_band
 
     def make_world(self, args: argparse.Namespace) -> World:
@@ -111,6 +111,7 @@ class Scenario(BaseScenario):
             if i==0:
                 ego.is_leader = True
                 ego.goal = np.array([0., 8.])
+                ego.goal_color = np.array([0.9, 0.9, 0.9])
             else:
                 ego.goal = np.array([0., 8.]) + H[i]
             ego.done = False
@@ -132,7 +133,7 @@ class Scenario(BaseScenario):
             d_obs.action_callback = dobs_policy
 
         init_pos_obs = np.array([[-1.5, 1.5], [-0.8, 3.8], [0.4, 2.6], [1.8, 0.9]])
-        self.sizes_obs = np.array([0.19, 0.25, 0.24, 0.22])
+        self.sizes_obs = np.array([0.15, 0.2, 0.19, 0.18])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -147,7 +148,7 @@ class Scenario(BaseScenario):
     def set_CL(self, CL_ratio, world):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
-        start_CL = 0.0
+        start_CL = 0.
         if start_CL < CL_ratio < self.cp:
             for i, obs in enumerate(obstacles):
                 obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
@@ -228,19 +229,14 @@ class Scenario(BaseScenario):
 
     # done condition for each agent
     def done(self, agent: Agent, world: World) -> bool:
-        if agent.is_leader:
-            dist = np.linalg.norm(agent.state.p_pos - agent.goal)
-            if dist < 0.5:
-                agent.done = True
-                return True
-        else:
-            for ego in world.egos:
-                if ego.is_leader:
-                    if ego.done:
-                        agent.done = True
-                        return True
+        for ego in world.egos:
+            if ego.is_leader:
+                dist = np.linalg.norm(ego.state.p_pos - ego.goal)
+                print(f"dist: {dist}")
+                if dist < 0.2:
+                    agent.done = True
+                    return True
         agent.done = False
-
         return False
 
     def reward(self, ego: Agent, world: World) -> float:
@@ -254,26 +250,14 @@ class Scenario(BaseScenario):
         dynamic_obstacles = world.dynamic_obstacles
         obstacles = world.obstacles
 
-        edge_list = world.edge_list.tolist()
-        edge_num = len(edge_list[1]) 
-
-        neighbors_id = []  # the neighbor id of all entities, global id
-        for j in range(edge_num):
-            if int(edge_list[0][j]) == ego.global_id:
-                neighbors_id.append(edge_list[1][j])
-            if int(edge_list[0][j]) > ego.global_id:
-                break
-
-        neighbors_ego = [e for e in egos if e.global_id in neighbors_id]
-        neighbors_dobs = [d for d in dynamic_obstacles if d.global_id in neighbors_id]
-        neighbors_obs = [o for o in obstacles if o.global_id in neighbors_id]
-
         k1 = 0.5  # pos coefficient
         k2 = 0.1  # vel coefficient
         k3 = 0.3  # neighbor coefficient
         sum_epj = np.array([0., 0.])
         sum_evj = np.array([0., 0.])
-        for nb_ego in neighbors_ego:
+        for nb_ego in egos:
+            if nb_ego == ego:
+                continue
             sum_epj = sum_epj + k3 * ((ego.state.p_pos - ego.formation_vector) - (nb_ego.state.p_pos - nb_ego.formation_vector))
             sum_evj = sum_evj + k3 * (ego.state.p_vel - nb_ego.state.p_vel)
 
@@ -283,35 +267,42 @@ class Scenario(BaseScenario):
         e_f = k1 * (epL + k3 * sum_epj) + k2 * (evL + k3 * sum_evj)
         e_f_value = np.linalg.norm(e_f)
 
+        # if ego.id == 0:
+        #     print(f"e_f_value: {e_f_value}")  #最大不超过0.4
+
         # formation reward
         if 0 <= e_f_value <= self.error_band:
-            r_fom = 2
-        elif self.error_band < e_f_value <= 1:
-            r_fom = -np.tanh(e_f_value*7.5 - 3)
-        elif 1 < e_f_value <= 2:
+            r_fom = 1
+        elif self.error_band < e_f_value <= 0.2:
+            r_fom = -np.tanh(e_f_value*30 - 4.5)
+        elif 0.2 < e_f_value <= 0.3:
             r_fom = -1
         else:
             r_fom = -2
         
         # collision reward
         r_ca = 0
-        penalty = 50
-        for obs in neighbors_obs:
+        penalty = 5
+        for obs in obstacles:
             d_ij = np.linalg.norm(ego.state.p_pos - obs.state.p_pos)
             if d_ij < ego.R + obs.R:
                 r_ca += -1*penalty
             elif d_ij < ego.R + obs.R + 0.25*obs.delta:
                 r_ca += (-0.5 - (ego.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
 
-        for dobs in neighbors_dobs:
+        for dobs in dynamic_obstacles:
             d_ij = np.linalg.norm(ego.state.p_pos - dobs.state.p_pos)
             if d_ij < ego.R + dobs.R:
                 r_ca += -1*penalty
             elif d_ij < ego.R + dobs.R + 0.25*dobs.delta:
                 r_ca += (-0.5 - (ego.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
 
+        # calculate dones
+        dist_lft = np.linalg.norm(leader.state.p_pos - leader.goal)
+        ego.done = True if dist_lft < 0.2 else False
+
         if leader.done and 0 <= e_f_value <= self.target_band:
-            r_ca += 10
+            r_ca += 5
 
         rew = r_fom + r_ca
 

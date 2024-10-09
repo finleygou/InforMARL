@@ -81,6 +81,7 @@ def GraphMPEEnv(args):
         update_graph=scenario.update_graph,
         id_callback=scenario.get_id,
         info_callback=scenario.info_callback,
+        # done_callback=scenario.done,
         scenario_name=args.scenario_name,
     )
 

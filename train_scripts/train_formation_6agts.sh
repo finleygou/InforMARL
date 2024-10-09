@@ -24,18 +24,17 @@ CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py --use_valuenor
 --num_obstacle 4 \
 --num_dynamic_obs 4 \
 --gp_type "formation" \
---save_data "True" \
+--save_data "False" \
 --reward_file_name "r_formation_6agts-v1" \
 --use_policy "False" \
 --use_curriculum "True" \
 --guide_cp 0.6 --cp 0.4 --js_ratio 0.6 \
---use_wandb "True" \
---num_agents=${n_agents} \
+--use_wandb "False" \
 --n_training_threads 16 --n_rollout_threads 32 \
 --use_lstm "True" \
 --episode_length ${ep_lens} \
 --num_env_steps 5000000 \
---ppo_epoch 15 --use_ReLU --gain 0.01 --lr 2e-4 --critic_lr 2e-4 \
+--ppo_epoch 15 --gain 0.01 --lr 2e-4 --critic_lr 2e-4 \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \
@@ -46,3 +45,4 @@ done
 
 # &> $logs_folder/out_${ep_lens}_${seed} \
 # --num_mini_batch 64 \
+# --use_popart False --use_valuenorm True --use_ReLU False \

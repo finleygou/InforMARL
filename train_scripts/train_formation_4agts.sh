@@ -27,10 +27,10 @@ CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py --use_valuenor
 --num_dynamic_obs 4 \
 --gp_type "formation" \
 --save_data "True" \
---reward_file_name "r_formation_4agts-v2" \
+--reward_file_name "r_formation_4agts-v1" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.5 --cp 0.4 --js_ratio 0.6 \
+--guide_cp 0.6 --cp 0.4 --js_ratio 0.8 \
 --use_wandb "True" \
 --num_agents=${n_agents} \
 --n_training_threads 16 --n_rollout_threads 32 \

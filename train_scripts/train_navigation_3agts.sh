@@ -12,7 +12,7 @@ do
 # seed=`expr ${seed} + 1`
 echo "seed: ${seed}"
 # execute the script with different params
-CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/train_mpe.py --use_valuenorm --use_popart \
+CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py --use_valuenorm --use_popart \
 --project_name "GP_Graph" \
 --env_name "GraphMPE" \
 --algorithm_name "rmappo" \
@@ -30,7 +30,7 @@ CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/train_mpe.py --use_valuenor
 --reward_file_name "r_navigation_3agts" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.6 --cp 0.4 --js_ratio 0.5 \
+--guide_cp 0.5 --cp 0.5 --js_ratio 0.8 \
 --use_wandb "True" \
 --num_agents=${n_agents} \
 --n_training_threads 16 --n_rollout_threads 32 \

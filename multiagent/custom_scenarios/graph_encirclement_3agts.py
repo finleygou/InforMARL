@@ -27,7 +27,7 @@ class Scenario(BaseScenario):
         self.d_cap = 1.0
         self.band_init = 0.25
         self.band_target = 0.1
-        self.angle_band_init = 0.7
+        self.angle_band_init = 0.6
         self.angle_band_target = 0.3
         self.delta_angle_band = self.angle_band_target
         self.d_lft_band = self.band_target
@@ -75,7 +75,7 @@ class Scenario(BaseScenario):
             ego.size = 0.12
             ego.R = ego.size
             ego.color = np.array([0.95, 0.45, 0.45])
-            ego.max_speed = 0.5
+            ego.max_speed = 0.8
             ego.max_accel = 0.5
             ego.global_id = global_id
             global_id += 1
@@ -292,47 +292,47 @@ class Scenario(BaseScenario):
         for ego in egos:
             dist_vec = ego.state.p_pos - target.state.p_pos
             form_vec = form_vec + dist_vec
-        r_f = np.exp(-k1*np.linalg.norm(form_vec)) - 1
+        r_f = np.exp(-k1*np.linalg.norm(form_vec))
         # distance coordination reward r_d
-        r_d = np.exp(-k2*np.sum(np.square(d_list))) - 1 
-
-        # r_l = 0
-        # for ego in egos:
-        #     if ego == agent: pass
-        #     else:
-        #         if self.is_collision(agent, ego):
-        #             r_l += -1
-        # for obs in obstacles:
-        #     if self.is_collision(agent, obs):
-        #         r_l += -1
-        # for d_obs in dynamic_obstacles:
-        #     if self.is_collision(agent, d_obs):
-        #         r_l += -1
+        r_d = np.exp(-k2*np.sum(np.square(d_list)))
 
         r_ca = 0
-        penalty = 1.0
         for ego in egos:
-            if ego == agent: 
-                pass
-            d_ij = np.linalg.norm(ego.state.p_pos - agent.state.p_pos)
-            if d_ij < ego.R + agent.R:
-                r_ca += -1*penalty
-            elif d_ij < ego.R + agent.R + 0.25*agent.delta:
-                r_ca += (-0.5 - (ego.R + agent.R + 0.25*agent.delta - d_ij)*2)*penalty
-
+            if ego == agent: continue
+            else:
+                if self.is_collision(agent, ego):
+                    r_ca += -1
         for obs in obstacles:
-            d_ij = np.linalg.norm(agent.state.p_pos - obs.state.p_pos)
-            if d_ij < agent.R + obs.R:
-                r_ca += -1*penalty
-            elif d_ij < agent.R + obs.R + 0.25*obs.delta:
-                r_ca += (-0.5 - (agent.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
+            if self.is_collision(agent, obs):
+                r_ca += -1
+        for d_obs in dynamic_obstacles:
+            if self.is_collision(agent, d_obs):
+                r_ca += -1
 
-        for dobs in dynamic_obstacles:
-            d_ij = np.linalg.norm(agent.state.p_pos - dobs.state.p_pos)
-            if d_ij < agent.R + dobs.R:
-                r_ca += -1*penalty
-            elif d_ij < agent.R + dobs.R + 0.25*dobs.delta:
-                r_ca += (-0.5 - (agent.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
+        # r_ca = 0
+        # penalty = 1.0
+        # for ego in egos:
+        #     if ego == agent: 
+        #         pass
+        #     d_ij = np.linalg.norm(ego.state.p_pos - agent.state.p_pos)
+        #     if d_ij < ego.R + agent.R:
+        #         r_ca += -1*penalty
+        #     elif d_ij < ego.R + agent.R + 0.25*agent.delta:
+        #         r_ca += (-0.5 - (ego.R + agent.R + 0.25*agent.delta - d_ij)*2)*penalty
+
+        # for obs in obstacles:
+        #     d_ij = np.linalg.norm(agent.state.p_pos - obs.state.p_pos)
+        #     if d_ij < agent.R + obs.R:
+        #         r_ca += -1*penalty
+        #     elif d_ij < agent.R + obs.R + 0.25*obs.delta:
+        #         r_ca += (-0.5 - (agent.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
+
+        # for dobs in dynamic_obstacles:
+        #     d_ij = np.linalg.norm(agent.state.p_pos - dobs.state.p_pos)
+        #     if d_ij < agent.R + dobs.R:
+        #         r_ca += -1*penalty
+        #     elif d_ij < agent.R + dobs.R + 0.25*dobs.delta:
+        #         r_ca += (-0.5 - (agent.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
 
         r_step = w1*r_f + w2*r_d + r_ca
 

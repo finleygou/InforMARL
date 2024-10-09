@@ -205,9 +205,9 @@ def get_config():
     parser.add_argument("--use_stacked_frames", action="store_true", default=False, help="Whether to use stacked_frames")
     parser.add_argument("--hidden_size", type=int, default=64, help="Dimension of hidden layers for actor/critic networks")
     parser.add_argument("--layer_N", type=int, default=1, help="Number of layers for actor/critic networks")
-    parser.add_argument("--use_ReLU", action="store_false", default=True, help="Whether to use ReLU")
-    parser.add_argument("--use_popart", action="store_true", default=False, help="by default False, use PopArt to normalize rewards.")
-    parser.add_argument("--use_valuenorm", action="store_false", default=True, help="by default True, use running mean and std to normalize rewards.")
+    parser.add_argument("--use_ReLU", action="store_true", default=True, help="Whether to use ReLU")
+    parser.add_argument("--use_popart", action="store_false", default=False, help="by default False, use PopArt to normalize rewards.")
+    parser.add_argument("--use_valuenorm", action="store_true", default=True, help="by default True, use running mean and std to normalize rewards.")
     parser.add_argument("--use_feature_normalization", action="store_false", default=True, help="Whether to apply layernorm to the inputs")
     parser.add_argument("--use_orthogonal", action="store_false", default=True, help="Whether to use Orthogonal initialization for weights and 0 initialization for biases")
     parser.add_argument("--gain", type=float, default=0.01, help="The gain # of last action layer")
@@ -235,7 +235,7 @@ def get_config():
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="entropy term coefficient (default: 0.01)")
     parser.add_argument("--value_loss_coef", type=float, default=1, help="value loss coefficient (default: 0.5)")
     parser.add_argument("--use_max_grad_norm", default=True, help="by default, use max norm of gradients. If set, do not use.")
-    parser.add_argument("--max_grad_norm", type=float, default=10.0, help="max norm of gradients (default: 0.5)")
+    parser.add_argument("--max_grad_norm", type=float, default=10.0, help="max norm of gradients (default: 10")
     parser.add_argument("--use_gae", action="store_false", default=True, help="use generalized advantage estimation")
     parser.add_argument("--gamma", type=float, default=0.99, help="discount factor for rewards (default: 0.99)")
     parser.add_argument("--gae_lambda", type=float, default=0.95, help="gae lambda parameter (default: 0.95)")
@@ -248,7 +248,7 @@ def get_config():
 
     
     # curriculum learning parameters
-    parser.add_argument("--use_policy", type=lambda x: bool(strtobool(x)), default=True, help="use the fixed policy to conduct tasks")
+    parser.add_argument("--use_policy", type=lambda x: bool(strtobool(x)), default=False, help="use the fixed policy to conduct tasks")
     parser.add_argument("--use_curriculum", type=lambda x: bool(strtobool(x)), default=False, help='use curriculum learning during training')
     parser.add_argument("--guide_cp", type=float, default=0.6, help='the proportion of guide policy over the whole training')
     parser.add_argument("--cp", type=float, default=0.6, help='cp used in simple scenarios')
@@ -278,6 +278,7 @@ def get_config():
     parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
     parser.add_argument("--render_eval", action="store_true", default=False, help="by default, do not render while evaluating. If set, render video.")
     parser.add_argument("--save_data", type=lambda x: bool(strtobool(x)), default=False, help='use to save data in rendering')
+    parser.add_argument("--monte_carlo_test", type=bool, default=False, help='if true, no image will be shown during render')
    
     # pretrained parameters
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")
@@ -294,7 +295,7 @@ def get_config():
     parser.add_argument('--scenario_name', type=str,
                         default='simple_formation_4agts', help="Which scenario to run on")
     parser.add_argument("--gp_type", type=str,
-                        default='formation', choices=["formation", "encirclement", "navigation"
+                        default='formation', choices=["formation", "encirclement", "navigation",
                                                        "formation_rvo", "encirclement_rvo", "navigation_rvo"], 
                                                        help="the choose of guide policy")
 

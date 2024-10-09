@@ -317,7 +317,7 @@ class MultiAgentBaseEnv(gym.Env):
 
             self.render_geoms = []
             self.render_geoms_xform = []
-
+            self.line = {}
             self.comm_geoms = []
 
             for entity in self.world.entities:
@@ -430,6 +430,30 @@ class MultiAgentBaseEnv(gym.Env):
                         for ci in range(self.world.dim_c):
                             color = 1 - entity.channel[ci]
                             self.comm_geoms[e][ci].set_color(color, color, color)
+
+            # plot target points
+            if 'navigation' in self.gp_type:
+                m = len(self.render_geoms)
+                for k, ego in enumerate(self.world.egos):
+                    geom = rendering.make_moving_circle(radius=ego.R, pos=ego.goal)  # entity.size
+                    geom.set_color(*ego.goal_color)
+                    self.render_geoms.append(geom)
+                    self.render_geoms[m+k] = self.viewers[i].draw_moving_circle(radius=ego.R, color=ego.goal_color, pos=ego.goal)
+
+            if 'formation' in self.gp_type:
+                m = len(self.render_geoms)
+                for k, ego in enumerate(self.world.egos):
+                    if ego.is_leader:
+                        geom = rendering.make_moving_circle(radius=0.1, pos=ego.goal)
+                        geom.set_color(*ego.goal_color)
+                        self.render_geoms.append(geom)
+                        self.render_geoms[m] = self.viewers[i].draw_moving_circle(radius=0.1, color=ego.goal_color, pos=ego.goal)
+
+            m = len(self.line)
+            for k, agent in enumerate(self.world.agents):
+                if not agent.done:
+                    self.line[m+k] = self.viewers[i].draw_line(agent.state.p_pos, agent.state.p_pos+agent.state.p_vel*1.0)
+                    self.line[m+k].set_color(*agent.color, alpha=0.5)
 
             # render the graph connections
             if hasattr(self.world, "graph_mode"):

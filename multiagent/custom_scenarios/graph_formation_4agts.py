@@ -282,7 +282,7 @@ class Scenario(BaseScenario):
         
         # collision reward
         r_ca = 0
-        penalty = 5
+        penalty = 10
         for obs in obstacles:
             d_ij = np.linalg.norm(ego.state.p_pos - obs.state.p_pos)
             if d_ij < ego.R + obs.R:

@@ -237,16 +237,15 @@ class MultiAgentBaseEnv(gym.Env):
             network_output = np.array([ux, uy])
             policy_output = (policy_u.T)[0]
 
-            if agent.done:  # only navigation may use
-                if (self.use_CL and self.CL_ratio > self.Cp) or self.use_policy:
-                    # agent decellerate to zero
-                    target_v = np.linalg.norm(agent.state.p_vel)
-                    if target_v < 1e-3:
-                        acc = np.array([0,0])
-                    else:
-                        acc = -agent.state.p_vel/target_v*agent.max_accel*1.1
-                    network_output[0], network_output[1] = acc[0], acc[1]
-                    policy_output = network_output
+            if agent.done:
+                # agent decellerate to zero
+                target_v = np.linalg.norm(agent.state.p_vel)
+                if target_v < 1e-3:
+                    acc = np.array([0,0])
+                else:
+                    acc = -agent.state.p_vel/target_v*agent.max_accel*1.1
+                network_output[0], network_output[1] = acc[0], acc[1]
+                policy_output = network_output
 
             if self.use_CL == True:
                 if self.CL_ratio < self.Cp:

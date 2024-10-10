@@ -90,10 +90,7 @@ class Categorical(nn.Module):
         x = self.linear(x)
         # supress the logits at all non-available actions
         if available_actions is not None:
-            if x.dtype == torch.float16:
-                x[available_actions == 0] = -1e4  # FP16 模式下使用较小负数
-            else:
-                x[available_actions == 0] = -1e10  # FP32 模式下使用原来的大负数
+            x[available_actions == 0] = torch.finfo(x.dtype).min
         return FixedCategorical(logits=x)
 
 

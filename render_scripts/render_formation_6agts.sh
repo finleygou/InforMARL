@@ -15,7 +15,7 @@ do
 # seed=`expr ${seed} + 1`
 echo "seed: ${seed}"
 # execute the script with different params
-python  ../onpolicy/scripts/eval_mpe.py --use_valuenorm --use_popart \
+python  ../onpolicy/scripts/eval_mpe.py
 --project_name "GP_Graph" \
 --env_name "GraphMPE" \
 --algorithm_name "rmappo" \
@@ -27,6 +27,7 @@ python  ../onpolicy/scripts/eval_mpe.py --use_valuenorm --use_popart \
 --use_render "True" \
 --save_data "False" \
 --use_curriculum "False" \
+--use_policy "False" \
 --num_target 0 \
 --num_agents 6 \
 --num_obstacle 4 \
@@ -39,6 +40,6 @@ python  ../onpolicy/scripts/eval_mpe.py --use_valuenorm --use_popart \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \
---use_att_gnn "True" \
+--use_att_gnn "False" \
 --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_6agts/rmappo/check/wandb/run-20241002_214019-zrys3y0c/files/"
 done

@@ -111,7 +111,7 @@ class Runner(object):
         if self.model_dir is not None:
             print(f"Restoring from checkpoint stored in {self.model_dir}")
             self.restore()
-            self.gif_dir = self.model_dir
+            self.gif_dir = str(self.run_dir / 'gifs')
 
         # algorithm
         self.trainer = TrainAlgo(self.all_args, self.policy, device=self.device)

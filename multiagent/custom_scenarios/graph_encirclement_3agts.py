@@ -139,7 +139,6 @@ class Scenario(BaseScenario):
             target.state.p_vel = np.array([0.0, 0.0])
             target.size = 0.12
             target.R = target.size
-            target.color = np.array([0.45, 0.45, 0.95])
 
         init_pos_d_obs = np.array([[-3., 5.], [3., 3.5], [-3., 8.], [3., 6.5]])
         init_direction = np.array([[1., -0.5], [-1., -0.5], [1., -0.5], [-1., -0.5]])
@@ -168,7 +167,7 @@ class Scenario(BaseScenario):
     def set_CL(self, CL_ratio, world):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
-        start_CL = 0.3
+        start_CL = 0.
         if start_CL < CL_ratio < self.cp:
             for i, obs in enumerate(obstacles):
                 obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
@@ -297,42 +296,18 @@ class Scenario(BaseScenario):
         r_d = np.exp(-k2*np.sum(np.square(d_list)))
 
         r_ca = 0
+        penalty = 10.
         for ego in egos:
             if ego == agent: continue
             else:
                 if self.is_collision(agent, ego):
-                    r_ca += -1
+                    r_ca += -1*penalty
         for obs in obstacles:
             if self.is_collision(agent, obs):
-                r_ca += -1
+                r_ca += -1*penalty
         for d_obs in dynamic_obstacles:
             if self.is_collision(agent, d_obs):
-                r_ca += -1
-
-        # r_ca = 0
-        # penalty = 1.0
-        # for ego in egos:
-        #     if ego == agent: 
-        #         pass
-        #     d_ij = np.linalg.norm(ego.state.p_pos - agent.state.p_pos)
-        #     if d_ij < ego.R + agent.R:
-        #         r_ca += -1*penalty
-        #     elif d_ij < ego.R + agent.R + 0.25*agent.delta:
-        #         r_ca += (-0.5 - (ego.R + agent.R + 0.25*agent.delta - d_ij)*2)*penalty
-
-        # for obs in obstacles:
-        #     d_ij = np.linalg.norm(agent.state.p_pos - obs.state.p_pos)
-        #     if d_ij < agent.R + obs.R:
-        #         r_ca += -1*penalty
-        #     elif d_ij < agent.R + obs.R + 0.25*obs.delta:
-        #         r_ca += (-0.5 - (agent.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
-
-        # for dobs in dynamic_obstacles:
-        #     d_ij = np.linalg.norm(agent.state.p_pos - dobs.state.p_pos)
-        #     if d_ij < agent.R + dobs.R:
-        #         r_ca += -1*penalty
-        #     elif d_ij < agent.R + dobs.R + 0.25*dobs.delta:
-        #         r_ca += (-0.5 - (agent.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
+                r_ca += -1*penalty
 
         r_step = w1*r_f + w2*r_d + r_ca
 
@@ -347,7 +322,7 @@ class Scenario(BaseScenario):
             else: dones.append(False)
         # print(dones)
         if all(dones)==True:  
-            agent.done = True
+            # agent.done = True
             target.done = True
             return 10+r_step
         else:  agent.done = False
@@ -359,8 +334,8 @@ class Scenario(BaseScenario):
             return 5+r_step # 5    # terminate reward
         elif abs(d_i)<self.d_lft_band and (left_nb_done or right_nb_done): # 30°
             return 3+r_step
-        elif abs(d_i)<self.d_lft_band:
-            return 1+r_step
+        # elif abs(d_i)<self.d_lft_band:
+        #     return 1+r_step
         else:
             return r_step
 

@@ -121,7 +121,7 @@ class Scenario(BaseScenario):
             ego.color = color_list[i]
             ego.goal_color = color_list[i]
 
-        init_pos_d_obs = np.array([[-3., 4.2], [3., 3.7], [-3., 7.0], [3., 6.5]])
+        init_pos_d_obs = np.array([[-3., 4.5], [3., 3.5], [-3., 7.0], [3., 6.]])
         init_direction = np.array([[1., -0.5], [-1., -0.5], [1., -0.5], [-1., -0.5]])
         for i, d_obs in enumerate(world.dynamic_obstacles):
             d_obs.done = False
@@ -240,7 +240,7 @@ class Scenario(BaseScenario):
             r_d += 5
       
         r_ca = 0
-        penalty = 1
+        penalty = 10
         for ego in egos:
             if ego == agent: pass
             else:
@@ -255,7 +255,7 @@ class Scenario(BaseScenario):
 
         r_step = r_d + r_ca
 
-        agent.done = self.done(agent, world)
+        # agent.done = self.done(agent, world)
 
         return r_step
 

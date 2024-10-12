@@ -132,7 +132,6 @@ class Scenario(BaseScenario):
             ego.state.V = np.linalg.norm(ego.state.p_vel)
             ego.state.phi = np.pi
             ego.d_cap = self.d_cap
-            ego.collision = False
 
         for i, target in enumerate(world.targets):
             target.done = False
@@ -453,7 +452,7 @@ class Scenario(BaseScenario):
 
         return np.hstack([pos, vel, Radius, entity_type])  # dim = 6
 
-def dobs_policy(agent, obstacles):
+def dobs_policy(agent, obstacles, dobs):
     action = agent.action
     dt = 0.1
     if agent.t > 20:

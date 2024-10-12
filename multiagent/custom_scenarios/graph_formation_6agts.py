@@ -23,8 +23,12 @@ class Scenario(BaseScenario):
 
     def __init__(self) -> None:
         super().__init__()
-        self.init_band = 0.20
-        self.target_band = 0.12 # 0.12 0.24 0.32 (tested through pure guide policy)
+        # self.init_band = 0.20
+        # self.target_band = 0.12 # 0.12 0.24 0.32 (tested through pure guide policy)
+        # self.error_band = self.target_band
+
+        self.init_band = 0.15
+        self.target_band = 0.08  #  0.08 0.2 0.3
         self.error_band = self.target_band
 
     def make_world(self, args: argparse.Namespace) -> World:
@@ -271,11 +275,19 @@ class Scenario(BaseScenario):
         #     print(f"e_f_value: {e_f_value}")  #最大不超过0.4
 
         # formation reward
+        # if 0 <= e_f_value <= self.error_band:
+        #     r_fom = 1
+        # elif self.error_band < e_f_value <= 0.24:
+        #     r_fom = -np.tanh(e_f_value * 24-4.5)
+        # elif 0.24 < e_f_value <= 0.32:
+        #     r_fom = -1
+        # else:
+        #     r_fom = -2
         if 0 <= e_f_value <= self.error_band:
             r_fom = 1
-        elif self.error_band < e_f_value <= 0.24:
-            r_fom = -np.tanh(e_f_value * 24-4.5)
-        elif 0.24 < e_f_value <= 0.32:
+        elif self.error_band < e_f_value <= 0.2:
+            r_fom = -np.tanh(e_f_value*30 - 4.5)
+        elif 0.2 < e_f_value <= 0.3:
             r_fom = -1
         else:
             r_fom = -2
@@ -416,7 +428,7 @@ class Scenario(BaseScenario):
 
         return np.hstack([pos, vel, Radius, entity_type])  # dim = 6
 
-def dobs_policy(agent, obstacles):
+def dobs_policy(agent, obstacles, dobs):
     action = agent.action
     dt = 0.1
     if agent.t > 20:

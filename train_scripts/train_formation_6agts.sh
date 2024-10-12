@@ -25,7 +25,7 @@ CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 0 --num_agents 6 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "formation" \
 --save_data "True" \
---reward_file_name "r_formation_6agts-v1" \
+--reward_file_name "r_formation_6agts-v2" \
 --use_policy "False" \
 --use_curriculum "True" \
 --guide_cp 0.6 --cp 0.4 --js_ratio 0.8 \

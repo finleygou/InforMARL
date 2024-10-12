@@ -132,6 +132,7 @@ class Scenario(BaseScenario):
             ego.state.V = np.linalg.norm(ego.state.p_vel)
             ego.state.phi = np.pi
             ego.d_cap = self.d_cap
+            ego.collision = False
 
         for i, target in enumerate(world.targets):
             target.done = False
@@ -282,9 +283,8 @@ class Scenario(BaseScenario):
                 d_min = d_
 
         #################################
-        k1, k2, k3 = 0.2, 0.4, 2.0
-        # w1, w2, w3 = 0.35, 0.4, 0.25
-        w1, w2, w3 = 0.4, 0.6, 0.0
+        k1, k2, k3 = 0.2, 0.4, 0.8
+        w1, w2, w3 = 0.2, 0.3, 0.5
 
         # formaion reward r_f
         form_vec = np.array([0.0, 0.0])
@@ -294,22 +294,31 @@ class Scenario(BaseScenario):
         r_f = np.exp(-k1*np.linalg.norm(form_vec))
         # distance coordination reward r_d
         r_d = np.exp(-k2*np.sum(np.square(d_list)))
+        # single distance reward
+        r_l = np.exp(-k3*abs(d_list[ego.id]))
 
         r_ca = 0
-        penalty = 10.
+        penalty = 50.
+        collision_flag = False
         for ego in egos:
             if ego == agent: continue
             else:
                 if self.is_collision(agent, ego):
                     r_ca += -1*penalty
+                    collision_flag = True
         for obs in obstacles:
             if self.is_collision(agent, obs):
                 r_ca += -1*penalty
+                collision_flag = True
         for d_obs in dynamic_obstacles:
             if self.is_collision(agent, d_obs):
                 r_ca += -1*penalty
+                collision_flag = True
 
-        r_step = w1*r_f + w2*r_d + r_ca
+        # if agent.id==0:
+        #     print(collision_flag)
+
+        r_step = w1*r_f + w2*r_d + w3*r_l + r_ca
 
         ####### calculate dones ########
         dones = []
@@ -324,16 +333,16 @@ class Scenario(BaseScenario):
         if all(dones)==True:  
             # agent.done = True
             target.done = True
-            return 10+r_step
+            return 5+r_step
         else:  agent.done = False
 
         left_nb_done = True if (abs(left_nb_angle - self.exp_alpha)<self.delta_angle_band and abs(d_list[left_id])<self.d_lft_band) else False
         right_nb_done = True if (abs(right_nb_angle - self.exp_alpha)<self.delta_angle_band and abs(d_list[right_id])<self.d_lft_band) else False
 
         if abs(d_i)<self.d_lft_band and left_nb_done and right_nb_done: # 30°
-            return 5+r_step # 5    # terminate reward
+            return 2+r_step # 5    # terminate reward
         elif abs(d_i)<self.d_lft_band and (left_nb_done or right_nb_done): # 30°
-            return 3+r_step
+            return 1+r_step
         # elif abs(d_i)<self.d_lft_band:
         #     return 1+r_step
         else:

@@ -23,7 +23,7 @@ do
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
-    --save_gifs "${save_gifs}" \
+    --save_gifs "False" \
     --use_render "True" \
     --save_data "False" \
     --use_curriculum "False" \
@@ -36,11 +36,11 @@ do
     --n_rollout_threads 1 \
     --use_lstm "True" \
     --episode_length ${ep_lens} \
-    --render_episodes 10 \
+    --render_episodes 1 \
     --ppo_epoch 15 --use_ReLU --gain 0.01 \
     --user_name "finleygou" \
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_3agts/rmappo/check/wandb/run-20241009_113329-e9eol6wt/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_3agts/rmappo/check/wandb/run-20241011_123032-eoesx919/files/"
 done

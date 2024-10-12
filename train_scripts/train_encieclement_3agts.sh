@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 1 --num_agents 3 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "encirclement" \
 --save_data "True" \
---reward_file_name "r_encirclement_3agts-v1" \
+--reward_file_name "r_encirclement_3agts-v3" \
 --use_policy "False" \
 --use_curriculum "True" \
 --guide_cp 0.6 --cp 0.4 --js_ratio 0.8 \

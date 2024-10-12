@@ -193,7 +193,7 @@ class World(object):
         self.cached_dist_vect = None
         self.cached_dist_mag = None
         self.world_length = 200
-        self.current_time_step = 0
+        self.world_step = 0
         self.num_agents = 0
         self.num_obstacles = 0
         self.max_edge_dist = 1.2
@@ -272,6 +272,7 @@ class World(object):
 
     # update state of the world
     def step(self):
+        self.world_step += 1
         # set actions for scripted agents
         for i, agent in enumerate(self.agents):
             if agent.name == 'target':

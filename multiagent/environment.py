@@ -641,7 +641,7 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
             adj_n.append(adj)
             done_n.append(self._get_done(agent))
             reward = self._get_reward(agent)
-            reward_n.append(reward)
+            reward_n.append([reward])
             info = {"individual_reward": reward}
             env_info = self._get_info(agent)
             info.update(env_info)  # nothing fancy here, just appending dict to dict
@@ -671,6 +671,7 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
         if self.shared_reward:
             reward_n = [[reward]] * self.n  # NOTE this line is similar to PPOEnv
 
+        # print("reward_n: ", reward_n)
         # print("node_obs_n: ", node_obs_n[0])
         # print("adj_n: ", adj_n[0])
         # print("agent_id_n: ", agent_id_n[0])

@@ -25,10 +25,10 @@ CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 0 --num_agents 3 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "navigation" \
 --save_data "True" \
---reward_file_name "r_navigation_3agts-v2" \
+--reward_file_name "r_navigation_3agts-v4" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.5 --cp 0.5 --js_ratio 0.8 \
+--guide_cp 0.4 --cp 0.4 --js_ratio 0.65 \
 --use_wandb "True" \
 --n_training_threads 16 --n_rollout_threads 32 \
 --use_lstm "True" \

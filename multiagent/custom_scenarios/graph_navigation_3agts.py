@@ -52,7 +52,7 @@ class Scenario(BaseScenario):
         world.graph_mode = True
         world.graph_feat_type = args.graph_feat_type
         world.world_length = args.episode_length
-        world.collaborative = True
+        world.collaborative = False
 
         world.max_edge_dist = self.max_edge_dist
         world.egos = [Agent() for i in range(self.num_egos)]
@@ -150,12 +150,18 @@ class Scenario(BaseScenario):
         dynamic_obstacles = world.dynamic_obstacles
         start_CL = 0.0
         if start_CL < CL_ratio < self.cp:
+            # for i, obs in enumerate(obstacles):
+            #     obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
+            #     obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+            # for i, d_obs in enumerate(dynamic_obstacles):
+            #     d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
+            #     d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
             for i, obs in enumerate(obstacles):
-                obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
-                obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+                obs.R = self.sizes_obs[i]
+                obs.delta = 0.1
             for i, d_obs in enumerate(dynamic_obstacles):
-                d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
-                d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+                d_obs.R = d_obs.size
+                d_obs.delta = 0.1
         elif CL_ratio >= self.cp:
             for i, obs in enumerate(obstacles):
                 obs.R = self.sizes_obs[i]
@@ -232,30 +238,35 @@ class Scenario(BaseScenario):
         egos = world.egos
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
-
-        k = 0.3
-        dist_to_goal = np.linalg.norm(agent.state.p_pos - agent.goal)
-        r_d = np.exp(-k*dist_to_goal)
-        if dist_to_goal<self.d_lft_band:
-            r_d += 5
       
         r_ca = 0
         penalty = 10
+        collision_flag = False
         for ego in egos:
             if ego == agent: pass
             else:
                 if self.is_collision(agent, ego):
                     r_ca += -1*penalty
+                    collision_flag = True
         for obs in obstacles:
             if self.is_collision(agent, obs):
                 r_ca += -1*penalty
+                collision_flag = True
         for d_obs in dynamic_obstacles:
             if self.is_collision(agent, d_obs):
                 r_ca += -1*penalty
+                collision_flag = True
+
+        k = 0.3
+        dist_to_goal = np.linalg.norm(agent.state.p_pos - agent.goal)
+        r_d = np.exp(-k*dist_to_goal)
+        if dist_to_goal<self.d_lft_band and not collision_flag:
+            r_d += 5
 
         r_step = r_d + r_ca
 
         # agent.done = self.done(agent, world)
+        # print("step:", world.world_step)
 
         return r_step
 

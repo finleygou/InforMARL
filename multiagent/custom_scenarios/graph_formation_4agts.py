@@ -24,7 +24,7 @@ class Scenario(BaseScenario):
     def __init__(self) -> None:
         super().__init__()
         self.init_band = 0.15
-        self.target_band = 0.08
+        self.target_band = 0.08  #  0.08 0.2 0.3
         self.error_band = self.target_band
 
     def make_world(self, args: argparse.Namespace) -> World:
@@ -288,14 +288,14 @@ class Scenario(BaseScenario):
             if d_ij < ego.R + obs.R:
                 r_ca += -1*penalty
             elif d_ij < ego.R + obs.R + 0.25*obs.delta:
-                r_ca += (-0.5 - (ego.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
+                r_ca += ( - (ego.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
 
         for dobs in dynamic_obstacles:
             d_ij = np.linalg.norm(ego.state.p_pos - dobs.state.p_pos)
             if d_ij < ego.R + dobs.R:
                 r_ca += -1*penalty
             elif d_ij < ego.R + dobs.R + 0.25*dobs.delta:
-                r_ca += (-0.5 - (ego.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
+                r_ca += ( - (ego.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
 
         # calculate dones
         dist_lft = np.linalg.norm(leader.state.p_pos - leader.goal)
@@ -305,6 +305,8 @@ class Scenario(BaseScenario):
             r_ca += 5
 
         rew = r_fom + r_ca
+
+        # print(f"id:{ego.id} e_f_value: {e_f_value}  r_f_value: {r_fom}  r_ca: {r_ca}")
 
         return rew
 

@@ -21,7 +21,7 @@ do
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
-    --save_gifs "True" \
+    --save_gifs "False" \
     --use_render "True" \
     --save_data "False" \
     --use_curriculum "False" \
@@ -40,5 +40,5 @@ do
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_4agts/rmappo/check/wandb/run-20241009_112333-e1cp5zca/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_4agts/rmappo/check/wandb/run-20241010_102439-ddd0kms2/files/"
 done

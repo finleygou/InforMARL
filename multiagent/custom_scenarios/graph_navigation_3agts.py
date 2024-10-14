@@ -267,6 +267,7 @@ class Scenario(BaseScenario):
 
         # agent.done = self.done(agent, world)
         # print("step:", world.world_step)
+        # print("ego id:", agent.id, "collide:", collision_flag)
 
         return r_step
 

@@ -18,8 +18,8 @@ do
     --algorithm_name "rmappo" \
     --seed ${seed} \
     --experiment_name "check" \
-    --scenario_name "graph_encirclement_3agts" \
-    --max_edge_dist 1.8 \
+    --scenario_name "graph_encirclement_5agts" \
+    --max_edge_dist 1.5 \
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
@@ -30,7 +30,7 @@ do
     --use_policy "False" \
     --gp_type "encirclement" \
     --num_target 1 \
-    --num_agents 3 \
+    --num_agents 5 \
     --num_obstacle 4 \
     --num_dynamic_obs 4 \
     --n_rollout_threads 1 \
@@ -42,5 +42,5 @@ do
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_3agts/rmappo/check/wandb/run-20241011_123032-eoesx919/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts/rmappo/check/wandb/run-20241012_134151-uyzj9hd0/files/"
 done

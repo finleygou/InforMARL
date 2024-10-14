@@ -167,7 +167,7 @@ class Scenario(BaseScenario):
     def set_CL(self, CL_ratio, world):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
-        start_CL = 0.
+        start_CL = 0.3
         if start_CL < CL_ratio < self.cp:
             for i, obs in enumerate(obstacles):
                 obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
@@ -283,7 +283,8 @@ class Scenario(BaseScenario):
 
         #################################
         k1, k2, k3 = 0.2, 0.4, 0.8
-        w1, w2, w3 = 0.2, 0.3, 0.5
+        # w1, w2, w3 = 0.2, 0.3, 0.5
+        w1, w2, w3 = 0.0, 0.4, 0.6
 
         # formaion reward r_f
         form_vec = np.array([0.0, 0.0])
@@ -294,10 +295,12 @@ class Scenario(BaseScenario):
         # distance coordination reward r_d
         r_d = np.exp(-k2*np.sum(np.square(d_list)))
         # single distance reward
-        r_l = np.exp(-k3*abs(d_list[ego.id]))
+        r_l = np.exp(-k3*abs(d_list[agent.id]))
+
+        # print(agent.id, d_list, d_list[agent.id])
 
         r_ca = 0
-        penalty = 50.
+        penalty = 5.
         collision_flag = False
         for ego in egos:
             if ego == agent: continue

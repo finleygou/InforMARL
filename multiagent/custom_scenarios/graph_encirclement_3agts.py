@@ -294,7 +294,7 @@ class Scenario(BaseScenario):
         # distance coordination reward r_d
         r_d = np.exp(-k2*np.sum(np.square(d_list)))
         # single distance reward
-        r_l = np.exp(-k3*abs(d_list[ego.id]))
+        r_l = np.exp(-k3*abs(d_list[agent.id]))
 
         r_ca = 0
         penalty = 50.

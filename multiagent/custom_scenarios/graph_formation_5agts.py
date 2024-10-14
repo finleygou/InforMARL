@@ -1,5 +1,5 @@
 """
-6 egos
+5 egos
 4 obstacles
 4 dynamic obstacles
 """
@@ -108,9 +108,9 @@ class Scenario(BaseScenario):
         world.num_obstacle_collisions = np.zeros(self.num_egos)
         world.num_agent_collisions = np.zeros(self.num_egos)
 
-        init_pos_ego = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 1.414], [0.707, 0.707], [1.414, 0.]])
+        init_pos_ego = np.array([[0., 0.], [-0.707, 0.707], [0.707, 0.707], [-0.707, -0.707], [0.707, -0.707]])
         init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
-        H = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 1.414], [0.707, 0.707], [1.414, 0.]])
+        H = np.array([[0., 0.], [-0.707, 0.707], [0.707, 0.707], [-0.707, -0.707], [0.707, -0.707]])
         for i, ego in enumerate(world.egos):
             if i==0:
                 ego.is_leader = True

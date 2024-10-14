@@ -1,5 +1,5 @@
 """
-6 egos
+3 egos
 4 obstacles
 4 dynamic obstacles
 """
@@ -23,12 +23,8 @@ class Scenario(BaseScenario):
 
     def __init__(self) -> None:
         super().__init__()
-        # self.init_band = 0.20
-        # self.target_band = 0.12 # 0.12 0.24 0.32 (tested through pure guide policy)
-        # self.error_band = self.target_band
-
-        self.init_band = 0.15
-        self.target_band = 0.08  #  0.08 0.2 0.3
+        self.init_band = 0.55
+        self.target_band = 0.25  #  0.25 0.65 0.75
         self.error_band = self.target_band
 
     def make_world(self, args: argparse.Namespace) -> World:
@@ -108,9 +104,9 @@ class Scenario(BaseScenario):
         world.num_obstacle_collisions = np.zeros(self.num_egos)
         world.num_agent_collisions = np.zeros(self.num_egos)
 
-        init_pos_ego = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 1.414], [0.707, 0.707], [1.414, 0.]])
-        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
-        H = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 1.414], [0.707, 0.707], [1.414, 0.]])
+        init_pos_ego = np.array([[0., 1.], [-1.0, 0.], [1., 0.]])
+        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
+        H = np.array([[0., 1.], [-1.0, 0.], [1., 0.]])
         for i, ego in enumerate(world.egos):
             if i==0:
                 ego.is_leader = True
@@ -136,8 +132,8 @@ class Scenario(BaseScenario):
             d_obs.state.p_vel = d_obs.direction*d_obs.max_speed/np.linalg.norm(d_obs.direction)
             d_obs.action_callback = dobs_policy
 
-        init_pos_obs = np.array([[-1.1, 1.7], [-1.3, 4.3], [-0.3, 3.1], [0.8, 2.7]])
-        self.sizes_obs = np.array([0.15, 0.2, 0.14, 0.18])
+        init_pos_obs = np.array([[-1.5, 1.5], [-0.8, 3.8], [0.4, 2.6], [1.8, 0.9]])
+        self.sizes_obs = np.array([0.15, 0.2, 0.19, 0.18])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -152,7 +148,7 @@ class Scenario(BaseScenario):
     def set_CL(self, CL_ratio, world):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
-        start_CL = 0.0
+        start_CL = 0.
         if start_CL < CL_ratio < self.cp:
             for i, obs in enumerate(obstacles):
                 obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
@@ -275,19 +271,11 @@ class Scenario(BaseScenario):
         #     print(f"e_f_value: {e_f_value}")  #最大不超过0.4
 
         # formation reward
-        # if 0 <= e_f_value <= self.error_band:
-        #     r_fom = 1
-        # elif self.error_band < e_f_value <= 0.24:
-        #     r_fom = -np.tanh(e_f_value * 24-4.5)
-        # elif 0.24 < e_f_value <= 0.32:
-        #     r_fom = -1
-        # else:
-        #     r_fom = -2
         if 0 <= e_f_value <= self.error_band:
             r_fom = 1
-        elif self.error_band < e_f_value <= 0.2:
-            r_fom = -np.tanh(e_f_value*30 - 4.5)
-        elif 0.2 < e_f_value <= 0.3:
+        elif self.error_band < e_f_value <= 0.65:
+            r_fom = -np.tanh(e_f_value*7.5 - 3)
+        elif 0.65 < e_f_value <= 0.75:
             r_fom = -1
         else:
             r_fom = -2
@@ -295,12 +283,10 @@ class Scenario(BaseScenario):
         # collision reward
         r_ca = 0
         penalty = 10
-        collision_flag = False
         for obs in obstacles:
             d_ij = np.linalg.norm(ego.state.p_pos - obs.state.p_pos)
             if d_ij < ego.R + obs.R:
                 r_ca += -1*penalty
-                collision_flag = True
             elif d_ij < ego.R + obs.R + 0.25*obs.delta:
                 r_ca += ( - (ego.R + obs.R + 0.25*obs.delta - d_ij)*2)*penalty
 
@@ -308,7 +294,6 @@ class Scenario(BaseScenario):
             d_ij = np.linalg.norm(ego.state.p_pos - dobs.state.p_pos)
             if d_ij < ego.R + dobs.R:
                 r_ca += -1*penalty
-                collision_flag = True
             elif d_ij < ego.R + dobs.R + 0.25*dobs.delta:
                 r_ca += ( - (ego.R + dobs.R + 0.25*dobs.delta - d_ij)*2)*penalty
 
@@ -321,7 +306,6 @@ class Scenario(BaseScenario):
 
         rew = r_fom + r_ca
 
-        # print(collision_flag)
         # print(f"id:{ego.id} e_f_value: {e_f_value}  r_f_value: {r_fom}  r_ca: {r_ca}")
 
         return rew

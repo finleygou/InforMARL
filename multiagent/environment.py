@@ -656,6 +656,8 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
                 terminate = [False] * self.n
         elif 'encirclement' in self.gp_type:
             terminate = done_n
+            # if self.world.targets[0].done:
+            #     print("step{} target done".format(self.current_step))
         elif 'navigation' in self.gp_type:
             if all(done_n):
                 terminate = [True] * self.n

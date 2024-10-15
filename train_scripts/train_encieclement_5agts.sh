@@ -12,7 +12,7 @@ do
 # seed=`expr ${seed} + 1`
 echo "seed: ${seed}"
 # execute the script with different params
-CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py \
+CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/train_mpe.py \
 --use_valuenorm --use_popart \
 --project_name "GP_Graph" \
 --env_name "GraphMPE" \
@@ -20,16 +20,16 @@ CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py \
 --seed ${seed} \
 --experiment_name "check" \
 --scenario_name "graph_encirclement_5agts" \
---max_edge_dist 1.5 \
+--max_edge_dist 1.8 \
 --clip_param 0.15 --gamma 0.985 \
 --hidden_size 64 --layer_N 1 \
 --num_target 1 --num_agents 5 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "encirclement" \
 --save_data "True" \
---reward_file_name "r_encirclement_5agts-v6" \
+--reward_file_name "r_encirclement_5agts-v10" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.6 --cp 0.6 --js_ratio 0.75 \
+--guide_cp 0.6 --cp 0.6 --js_ratio 0.7 \
 --use_wandb "True" \
 --n_training_threads 16 --n_rollout_threads 32 \
 --use_lstm "True" \

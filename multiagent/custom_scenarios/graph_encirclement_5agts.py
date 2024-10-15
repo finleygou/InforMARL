@@ -25,13 +25,18 @@ class Scenario(BaseScenario):
     def __init__(self) -> None:
         super().__init__()
         self.d_cap = 1.0
-        self.band_init = 0.25
+        self.band_init = 0.3
         self.band_target = 0.1
-        self.angle_band_init = 0.6
+        self.angle_band_init = 0.9
         self.angle_band_target = 0.3
         self.delta_angle_band = self.angle_band_target
         self.d_lft_band = self.band_target
         self.dleft_lb = self.d_cap - self.d_lft_band
+
+        self.penalty_start = 1
+        self.penalty_target = 5
+        self.penalty = self.penalty_target
+
 
     def make_world(self, args: argparse.Namespace) -> World:
         # pull params from args
@@ -167,7 +172,7 @@ class Scenario(BaseScenario):
     def set_CL(self, CL_ratio, world):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
-        start_CL = 0.3
+        start_CL = 0.
         if start_CL < CL_ratio < self.cp:
             for i, obs in enumerate(obstacles):
                 obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
@@ -194,10 +199,12 @@ class Scenario(BaseScenario):
             self.d_lft_band = self.band_init - (self.band_init - self.band_target)*CL_ratio/self.cp
             self.delta_angle_band = self.angle_band_init - (self.angle_band_init - self.angle_band_target)*CL_ratio/self.cp
             self.dleft_lb = (self.d_cap - self.d_lft_band)*CL_ratio/self.cp
+            self.penalty = self.penalty_start + (self.penalty_target - self.penalty_start)*CL_ratio/self.cp
         else:
             self.d_lft_band = self.band_target
             self.delta_angle_band = self.angle_band_target
             self.dleft_lb = self.d_cap - self.band_target
+            self.penalty = self.penalty_target
 
     def info_callback(self, agent: Agent, world: World) -> Tuple:
         if agent.collide:
@@ -252,7 +259,7 @@ class Scenario(BaseScenario):
                 dones.append(True)
             else: dones.append(False)
         if all(dones)==True:  
-            agent.done = True
+            # agent.done = True
             target.done = True
             return True
         else:  agent.done = False
@@ -300,7 +307,8 @@ class Scenario(BaseScenario):
         # print(agent.id, d_list, d_list[agent.id])
 
         r_ca = 0
-        penalty = 5.
+        # penalty = self.penalty
+        penalty = 5
         collision_flag = False
         for ego in egos:
             if ego == agent: continue
@@ -333,7 +341,7 @@ class Scenario(BaseScenario):
             else: dones.append(False)
         # print(dones)
         if all(dones)==True:  
-            # agent.done = True
+            agent.done = True
             target.done = True
             return 10+r_step
         else:  agent.done = False

@@ -23,8 +23,8 @@ class Scenario(BaseScenario):
 
     def __init__(self) -> None:
         super().__init__()
-        self.init_band = 0.55
-        self.target_band = 0.25  #  0.25 0.65 0.75
+        self.init_band = 0.15
+        self.target_band = 0.05  
         self.error_band = self.target_band
 
     def make_world(self, args: argparse.Namespace) -> World:
@@ -105,8 +105,8 @@ class Scenario(BaseScenario):
         world.num_agent_collisions = np.zeros(self.num_egos)
 
         init_pos_ego = np.array([[0., 1.], [-1.0, 0.], [1., 0.]])
-        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
-        H = np.array([[0., 1.], [-1.0, 0.], [1., 0.]])
+        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
+        H = np.array([[0., 0.], [-1.0, -1.0], [1., -1]])
         for i, ego in enumerate(world.egos):
             if i==0:
                 ego.is_leader = True
@@ -271,11 +271,23 @@ class Scenario(BaseScenario):
         #     print(f"e_f_value: {e_f_value}")  #最大不超过0.4
 
         # formation reward
+        # error_band = self.error_band
+        # if ego.is_leader:
+        #     error_band = self.error_band*1.5
+        # if 0 <= e_f_value <= self.error_band:
+        #     r_fom = 1
+        # elif self.error_band < e_f_value <= 0.65:
+        #     r_fom = -np.tanh(e_f_value*7.5 - 3)
+        # elif 0.65 < e_f_value <= 0.75:
+        #     r_fom = -1
+        # else:
+        #     r_fom = -2
+
         if 0 <= e_f_value <= self.error_band:
             r_fom = 1
-        elif self.error_band < e_f_value <= 0.65:
-            r_fom = -np.tanh(e_f_value*7.5 - 3)
-        elif 0.65 < e_f_value <= 0.75:
+        elif self.error_band < e_f_value <= 0.2:
+            r_fom = -np.tanh(e_f_value*30 - 4.5)
+        elif 0.2 < e_f_value <= 0.3:
             r_fom = -1
         else:
             r_fom = -2

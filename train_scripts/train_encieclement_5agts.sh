@@ -12,7 +12,7 @@ do
 # seed=`expr ${seed} + 1`
 echo "seed: ${seed}"
 # execute the script with different params
-CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/train_mpe.py \
+CUDA_VISIBLE_DEVICES='3' python  ../onpolicy/scripts/train_mpe.py \
 --use_valuenorm --use_popart \
 --project_name "GP_Graph" \
 --env_name "GraphMPE" \
@@ -26,17 +26,17 @@ CUDA_VISIBLE_DEVICES='2' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 1 --num_agents 5 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "encirclement" \
 --save_data "True" \
---reward_file_name "r_encirclement_5agts-v10" \
+--reward_file_name "r_encirclement_5agts-v3" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.6 --cp 0.6 --js_ratio 0.7 \
+--guide_cp 0.5 --cp 0.5 --js_ratio 0.7 \
 --use_wandb "True" \
 --n_training_threads 16 --n_rollout_threads 32 \
 --use_lstm "True" \
 --episode_length ${ep_lens} \
---num_env_steps 6000000 \
+--num_env_steps 8000000 \
 --data_chunk_length 20 \
---ppo_epoch 15 --use_ReLU --gain 0.01 --lr 2e-4 --critic_lr 2e-4 \
+--ppo_epoch 15 --use_ReLU --gain 0.01 --lr 1.5e-4 --critic_lr 1.5e-4 \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \

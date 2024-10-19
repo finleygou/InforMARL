@@ -27,14 +27,14 @@ class Scenario(BaseScenario):
         self.d_cap = 1.0
         self.band_init = 0.3
         self.band_target = 0.1
-        self.angle_band_init = 0.9
-        self.angle_band_target = 0.3
+        self.angle_band_init = 1.0
+        self.angle_band_target = 0.4
         self.delta_angle_band = self.angle_band_target
         self.d_lft_band = self.band_target
         self.dleft_lb = self.d_cap - self.d_lft_band
 
-        self.penalty_start = 1
-        self.penalty_target = 5
+        self.penalty_start = 0
+        self.penalty_target = 3
         self.penalty = self.penalty_target
 
 
@@ -157,7 +157,7 @@ class Scenario(BaseScenario):
             d_obs.action_callback = dobs_policy
 
         init_pos_obs = np.array([[-1.3, 1.7], [-0.2, 0.7], [1.1, 1.3], [0.4, 2.7]])
-        self.sizes_obs = np.array([0.15, 0.17, 0.19, 0.22])
+        self.sizes_obs = np.array([0.14, 0.16, 0.18, 0.20])
         for i, obs in enumerate(world.obstacles):
             obs.done = False
             obs.state.p_pos = init_pos_obs[i]
@@ -173,13 +173,19 @@ class Scenario(BaseScenario):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
         start_CL = 0.
-        if start_CL < CL_ratio < self.cp:
+        if start_CL <= CL_ratio < self.cp:
+            # for i, obs in enumerate(obstacles):
+            #     obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
+            #     obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+            # for i, d_obs in enumerate(dynamic_obstacles):
+            #     d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
+            #     d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
             for i, obs in enumerate(obstacles):
-                obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
-                obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+                obs.R = self.sizes_obs[i]
+                obs.delta = 0.1
             for i, d_obs in enumerate(dynamic_obstacles):
-                d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
-                d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+                d_obs.R = d_obs.size
+                d_obs.delta = 0.1
         elif CL_ratio >= self.cp:
             for i, obs in enumerate(obstacles):
                 obs.R = self.sizes_obs[i]
@@ -199,7 +205,8 @@ class Scenario(BaseScenario):
             self.d_lft_band = self.band_init - (self.band_init - self.band_target)*CL_ratio/self.cp
             self.delta_angle_band = self.angle_band_init - (self.angle_band_init - self.angle_band_target)*CL_ratio/self.cp
             self.dleft_lb = (self.d_cap - self.d_lft_band)*CL_ratio/self.cp
-            self.penalty = self.penalty_start + (self.penalty_target - self.penalty_start)*CL_ratio/self.cp
+            # self.penalty = self.penalty_start + (self.penalty_target - self.penalty_start)*CL_ratio/self.cp
+            self.penalty = self.penalty_start
         else:
             self.d_lft_band = self.band_target
             self.delta_angle_band = self.angle_band_target
@@ -291,7 +298,7 @@ class Scenario(BaseScenario):
         #################################
         k1, k2, k3 = 0.2, 0.4, 0.8
         # w1, w2, w3 = 0.2, 0.3, 0.5
-        w1, w2, w3 = 0.0, 0.4, 0.6
+        w1, w2, w3 = 0.2, 0.3, 0.5
 
         # formaion reward r_f
         form_vec = np.array([0.0, 0.0])
@@ -308,7 +315,7 @@ class Scenario(BaseScenario):
 
         r_ca = 0
         # penalty = self.penalty
-        penalty = 5
+        penalty = 2
         collision_flag = False
         for ego in egos:
             if ego == agent: continue
@@ -324,6 +331,9 @@ class Scenario(BaseScenario):
             if self.is_collision(agent, d_obs):
                 r_ca += -1*penalty
                 collision_flag = True
+
+        # if collision_flag:
+        #     r_ca = -3
 
         # if agent.id==0:
         #     print(collision_flag)
@@ -359,11 +369,11 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent, world: World) -> arr:
         """
         Return:
-            [agent_pos, agent_vel, goal_pos]
+            [agent_pos, agent_vel, target_pos, target_vel]
         """
         target = world.targets[0]
-        goal_pos = target.state.p_pos
-        return np.concatenate([agent.state.p_pos, agent.state.p_vel] + goal_pos)  # dim = 6
+        # goal_pos = target.state.p_pos
+        return np.concatenate([agent.state.p_pos, agent.state.p_vel, target.state.p_pos, target.state.p_vel])  # dim = 6
 
     def get_id(self, agent: Agent) -> arr:
         return np.array([agent.global_id])

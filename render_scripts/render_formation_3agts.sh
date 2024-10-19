@@ -41,5 +41,5 @@ do
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_3agts/rmappo/check/wandb/run-20241014_225807-n9szrha2/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_3agts/rmappo/check/wandb/run-20241015_102115-wqgkjh7w/files/"
 done

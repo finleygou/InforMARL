@@ -25,16 +25,16 @@ class Scenario(BaseScenario):
     def __init__(self) -> None:
         super().__init__()
         self.d_cap = 1.0
-        self.band_init = 0.3
-        self.band_target = 0.1
-        self.angle_band_init = 1.0
+        self.band_init = 0.12
+        self.band_target = 0.08
+        self.angle_band_init = 0.4
         self.angle_band_target = 0.3
         self.delta_angle_band = self.angle_band_target
         self.d_lft_band = self.band_target
         self.dleft_lb = self.d_cap - self.d_lft_band
 
-        self.penalty_start = 2
-        self.penalty_target = 15
+        self.penalty_start = 15
+        self.penalty_target = 100
         self.penalty = self.penalty_target
 
 
@@ -205,20 +205,13 @@ class Scenario(BaseScenario):
             self.d_lft_band = self.band_init - (self.band_init - self.band_target)*CL_ratio/self.cp
             self.delta_angle_band = self.angle_band_init - (self.angle_band_init - self.angle_band_target)*CL_ratio/self.cp
             self.dleft_lb = (self.d_cap - self.d_lft_band)*CL_ratio/self.cp
+            self.penalty = self.penalty_start + (self.penalty_target - self.penalty_start)*CL_ratio/self.cp
         else:
             self.d_lft_band = self.band_target
             self.delta_angle_band = self.angle_band_target
             self.dleft_lb = self.d_cap - self.band_target
-        
-        end_CL = 0.75
-        if CL_ratio < self.cp:
-            self.penalty = self.penalty_start
-        elif self.cp <= CL_ratio < end_CL:
-            self.penalty = self.penalty_start + (self.penalty_target - self.penalty_start)*(CL_ratio-self.cp)/(end_CL-self.cp)
-        else:
             self.penalty = self.penalty_target
-
-
+        
     def info_callback(self, agent: Agent, world: World) -> Tuple:
         if agent.collide:
             if self.is_obstacle_collision(agent.state.p_pos, agent.R, world):

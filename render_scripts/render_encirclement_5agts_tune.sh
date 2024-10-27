@@ -18,12 +18,12 @@ do
     --algorithm_name "rmappo" \
     --seed ${seed} \
     --experiment_name "check" \
-    --scenario_name "graph_encirclement_5agts" \
+    --scenario_name "graph_encirclement_5agts_tune" \
     --max_edge_dist 1.8 \
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
-    --save_gifs "True" \
+    --save_gifs "0" \
     --use_render "True" \
     --save_data "False" \
     --use_curriculum "False" \
@@ -42,5 +42,5 @@ do
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts/rmappo/check/wandb/run-20241023_084809-k89yapt1/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts_tune/rmappo/check/wandb/run-20241024_223223-4l2n122d/files/"
 done

@@ -23,9 +23,9 @@ do
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
-    --save_gifs "0" \
+    --save_gifs "False" \
     --use_render "True" \
-    --save_data "False" \
+    --save_data "True" \
     --use_curriculum "False" \
     --use_policy "False" \
     --gp_type "encirclement" \
@@ -42,5 +42,5 @@ do
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts_tune/rmappo/check/wandb/run-20241024_223223-4l2n122d/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts_tune/rmappo/check/wandb/run-20241024_114228-vuqrvrsw/files/"
 done

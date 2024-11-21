@@ -24,7 +24,7 @@ do
     --use_wandb "False" \
     --save_gifs "False" \
     --use_render "True" \
-    --save_data "False" \
+    --save_data "True" \
     --use_curriculum "False" \
     --use_policy "False" \
     --num_target 0 \

@@ -21,9 +21,9 @@ do
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
-    --save_gifs "True" \
+    --save_gifs "False" \
     --use_render "True" \
-    --save_data "False" \
+    --save_data "True" \
     --use_curriculum "False" \
     --use_policy "False" \
     --gp_type "formation" \

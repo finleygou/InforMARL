@@ -104,10 +104,12 @@ class Scenario(BaseScenario):
         world.num_obstacle_collisions = np.zeros(self.num_egos)
         world.num_agent_collisions = np.zeros(self.num_egos)
 
-        self.assign_list = rand_assign_targets(self.num_egos, self.num_egos)
+        self.assign_list = rand_assign_targets(self.num_egos, self.num_egos)  
+        # [0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]
+        # self.assign_list = [2,1,0]
         goal_pos = np.array([[-0.9, 3.6], [0.1, 4.0], [1.1, 4.4]])
         init_pos_ego = np.array([[-0.8, 0.], [0.0, 0.0], [0.8, 0.0]])
-        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
+        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
         color_list = [np.array([0.95, 0.45, 0.45]), np.array([0.95, 0.95, 0.00]), 
                       np.array([0.45, 0.95, 0.45]), np.array([0.95, 0.75, 0.80]),
                       np.array([0.45, 0.0, 0.45]), np.array([0.6, 0.4, 0.2])]

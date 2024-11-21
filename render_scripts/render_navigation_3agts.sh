@@ -22,9 +22,9 @@ do
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
-    --save_gifs "True" \
+    --save_gifs "False" \
     --use_render "True" \
-    --save_data "False" \
+    --save_data "True" \
     --use_curriculum "False" \
     --use_policy "False" \
     --gp_type "navigation" \
@@ -35,7 +35,7 @@ do
     --n_rollout_threads 1 \
     --use_lstm "True" \
     --episode_length ${ep_lens} \
-    --render_episodes 6 \
+    --render_episodes 1 \
     --ppo_epoch 15 --use_ReLU --gain 0.01 \
     --user_name "finleygou" \
     --use_cent_obs "False" \

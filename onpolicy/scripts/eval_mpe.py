@@ -8,6 +8,7 @@ import wandb
 import numpy as np
 from pathlib import Path
 import torch
+import csv
 
 import os, sys
 
@@ -205,6 +206,19 @@ def main(args):
     # runner.policy.actor.load_state_dict(actor_state_dict)
     runner.render()  # showing image
     # runner.render(True)  # not showing image
+
+    if all_args.save_data:
+        from multiagent.environment import INFO
+        #csv
+        file = open('INFO.csv', 'w', encoding='utf-8', newline="")
+        writer = csv.writer(file)
+        # writer.writerow(['id', 'pos_x', 'pos_y', 'vel', 'phi'])
+        for data in INFO:
+            data = [data[i] for i in range(len(data))]
+            writer.writerow(data)
+
+        file.close()
+        #
 
     # post process
     envs.close()

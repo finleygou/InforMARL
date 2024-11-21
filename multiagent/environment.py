@@ -13,7 +13,7 @@ import csv
 
 # update bounds to center around agent
 cam_range = 8
-
+INFO = []
 
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
@@ -413,6 +413,23 @@ class MultiAgentBaseEnv(gym.Env):
             #     pos[1] + cam_range,
             # )
             self.viewers[i].set_bounds(-10, 10, -5, 15)
+
+            # save traj data 
+            # print(self.args.save_data)
+            if self.args.save_data:
+                data_ = ()
+                for j, ego in enumerate(self.world.egos):
+                    data_ = data_ + (j, ego.state.p_pos[0], ego.state.p_pos[1], ego.state.p_vel[0], ego.state.p_vel[1])
+                for j, dob in enumerate(self.world.dynamic_obstacles):
+                    data_ = data_ + (j, dob.state.p_pos[0], dob.state.p_pos[1], dob.state.p_vel[0], dob.state.p_vel[1])
+                for j, obs in enumerate(self.world.obstacles):
+                    data_ = data_ + (j, obs.state.p_pos[0], obs.state.p_pos[1], obs.R)
+                for j, target in enumerate(self.world.targets):
+                    data_ = data_ + (j, target.state.p_pos[0], target.state.p_pos[1], target.state.p_vel[0], target.state.p_vel[1])
+                
+                INFO.append(data_)
+
+
             # update geometry positions
             for e, entity in enumerate(self.world.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.p_pos)

@@ -14,7 +14,7 @@ echo "seed: ${seed}"
 # execute the script with different params
 CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py \
 --use_valuenorm --use_popart \
---project_name "GP_Graph_RNN" \
+--project_name "GP_Graph_NT" \
 --env_name "GraphMPE" \
 --algorithm_name "rmappo" \
 --seed ${seed} \
@@ -25,7 +25,7 @@ CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 0 --num_agents 3 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "navigation" \
 --save_data "True" \
---reward_file_name "r_navigation_3agts-rnn-v1" \
+--reward_file_name "r_navigation_3agts-nt-v1" \
 --use_policy "False" \
 --use_curriculum "True" \
 --guide_cp 0.4 --cp 0.4 --js_ratio 0.65 \

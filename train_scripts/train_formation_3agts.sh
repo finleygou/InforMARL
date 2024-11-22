@@ -12,9 +12,9 @@ do
 # seed=`expr ${seed} + 1`
 echo "seed: ${seed}"
 # execute the script with different params
-CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py \
+CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py \
 --use_valuenorm --use_popart \
---project_name "GP_Graph_RNN" \
+--project_name "GP_Graph_NT" \
 --env_name "GraphMPE" \
 --algorithm_name "rmappo" \
 --seed ${seed} \
@@ -26,13 +26,13 @@ CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 0 --num_agents 3 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "formation" \
 --save_data "True" \
---reward_file_name "r_formation_3agts-rnn-v1" \
+--reward_file_name "r_formation_3agts-NT-v2" \
 --use_policy "False" \
 --use_curriculum "True" \
 --guide_cp 0.6 --cp 0.4 --js_ratio 0.8 \
 --use_wandb "True" \
 --n_training_threads 16 --n_rollout_threads 32 \
---use_lstm "False" \
+--use_lstm "True" \
 --episode_length ${ep_lens} \
 --num_env_steps 6000000 \
 --data_chunk_length 20 \
@@ -40,7 +40,7 @@ CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \
---use_att_gnn "False" \
+--use_att_gnn "True" \
 --split_batch "True" --max_batch_size 512 \
 --auto_mini_batch_size "True" --target_mini_batch_size 512
 done

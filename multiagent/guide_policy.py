@@ -1,6 +1,20 @@
 import numpy as np  
-from onpolicy.envs.mpe.RVO import *
+from .RVO import *
 # guide_policy.py
+
+def set_JS_curriculum(CL_ratio, gp_type):
+    if "formation" in gp_type:
+        func_ = 1-CL_ratio
+    elif "encirclement" in gp_type:
+        # k = 1.0
+        # delta = 1-(np.exp(-k*(-1))-np.exp(k*(-1)))/(np.exp(-k*(-1))+np.exp(k*(-1)))
+        # x = 2*CL_ratio-1
+        # y_mid = (np.exp(-k*x)-np.exp(k*x))/(np.exp(-k*x)+np.exp(k*x))-delta*x**3
+        # func_ = (y_mid+1)/2
+        func_ = 1-CL_ratio
+    elif "navigation" in gp_type:
+        func_ = 1-CL_ratio
+    return func_
 
 def guide_policy(world, gp_type):
     """Factory function to select the appropriate policy based on the version"""

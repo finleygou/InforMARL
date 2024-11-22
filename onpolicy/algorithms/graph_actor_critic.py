@@ -328,10 +328,11 @@ class GR_Critic(nn.Module):
         ]  # (num_nodes, num_node_feats)
         edge_dim = get_shape_from_obs_space(edge_obs_space)[0]  # (edge_dim,)
 
-        if self.use_att_gnn:
-            from onpolicy.algorithms.utils.gnn import GNNBase
-        else:
-            from onpolicy.algorithms.utils.gnn_transformer import GNNBase
+        # if self.use_att_gnn:
+        #     from onpolicy.algorithms.utils.gnn import GNNBase
+        # else:
+        #     from onpolicy.algorithms.utils.gnn_transformer import GNNBase
+        from onpolicy.algorithms.utils.gnn_transformer import GNNBase
         self.gnn_base = GNNBase(args, node_obs_shape, edge_dim, args.critic_graph_aggr)
         gnn_out_dim = self.gnn_base.out_dim
         # if node aggregation, then concatenate aggregated node features for all agents

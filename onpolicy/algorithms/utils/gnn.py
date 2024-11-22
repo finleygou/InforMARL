@@ -1,274 +1,313 @@
+import numpy as np
+from scipy import sparse
 import torch
 from torch import Tensor
 import torch.nn as nn
-import torch.nn.functional as F
-from torch_geometric.data import Data
+import torch_geometric
+import torch_geometric.nn as gnn
+from torch_geometric.data import Data, Batch
 from torch_geometric.loader import DataLoader
-from torch_geometric.utils import to_dense_batch, add_self_loops
-from torch_geometric.nn import MessagePassing
+from torch_geometric.nn import MessagePassing, global_mean_pool, global_max_pool, global_add_pool
+from torch_geometric.utils import add_self_loops, to_dense_batch
+
 import argparse
 from typing import List, Tuple, Union, Optional
-from .util import init, get_clones
 from torch_geometric.typing import OptPairTensor, Adj, OptTensor, Size
+import torch.jit as jit
+from .util import init, get_clones
+import torch.nn.functional as F
 
 
 class EmbedConv(MessagePassing):
-
-    def __init__(
-        self,
-        input_dim: int,
-        num_embeddings: int,
-        embedding_size: int,
-        hidden_size: int,
-        layer_N: int,
-        use_orthogonal: bool,
-        use_ReLU: bool,
-        use_layerNorm: bool,
-        add_self_loop: bool,
-        edge_dim: int = 0,
-    ):
-        """
-            EmbedConv Layer which takes in node features, node_type (entity type)
-            and the  edge features (if they exist)
-            `entity_embedding` is concatenated with `node_features` and
-            `edge_features` and are passed through linear layers.
-            The `message_passing` is similar to GCN layer
-
-        Args:
-            input_dim (int):
-                The node feature dimension
-            num_embeddings (int):
-                The number of embedding classes aka the number of entity types
-            embedding_size (int):
-                The embedding layer output size
-            hidden_size (int):
-                Hidden layer size of the linear layers
-            layer_N (int):
-                Number of linear layers for aggregation
-            use_orthogonal (bool):
-                Whether to use orthogonal initialization for each layer
-            use_ReLU (bool):
-                Whether to use reLU for each layer
-            use_layerNorm (bool):
-                Whether to use layerNorm for each layer
-            add_self_loop (bool):
-                Whether to add self loops in the graph
-            edge_dim (int, optional):
-                Edge feature dimension, If zero then edge features are not
-                considered. Defaults to 0.
-        """
-        super(EmbedConv, self).__init__(aggr="add")
+    """
+    EmbedConv 类定义与代码1保持一致，无需修改。
+    """
+    def __init__(self, 
+                input_dim:int, 
+                num_embeddings:int, 
+                embedding_size:int, 
+                hidden_size:int,
+                layer_N:int,
+                use_orthogonal:bool,
+                use_ReLU:bool,
+                use_layerNorm:bool,
+                add_self_loop:bool,
+                edge_dim:int=0):
+        super(EmbedConv, self).__init__(aggr='add')
         self._layer_N = layer_N
         self._add_self_loops = add_self_loop
-        active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
-        layer_norm = [nn.Identity(), nn.LayerNorm(hidden_size)][use_layerNorm]
-        init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
-        gain = nn.init.calculate_gain(["tanh", "relu"][use_ReLU])
-
-        def init_(m):
-            return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
+        self.active_func = nn.ReLU() if use_ReLU else nn.Tanh()
+        self.layer_norm = nn.LayerNorm(hidden_size) if use_layerNorm else nn.Identity()
+        self.init_method = nn.init.orthogonal_ if use_orthogonal else nn.init.xavier_uniform_
 
         self.entity_embed = nn.Embedding(num_embeddings, embedding_size)
-        self.lin1 = nn.Sequential(
-            init_(nn.Linear(input_dim + embedding_size + edge_dim, hidden_size)),
-            active_func,
-            layer_norm,
-        )
-        self.lin_h = nn.Sequential(
-            init_(nn.Linear(hidden_size, hidden_size)), active_func, layer_norm
-        )
 
-        self.lin2 = get_clones(self.lin_h, self._layer_N)
+        # 定义第一层线性层
+        self.lin1 = nn.Linear(input_dim + embedding_size + edge_dim, hidden_size)
+        
+        # 初始化隐藏层
+        self.layers = nn.ModuleList()
+        for _ in range(layer_N):
+            self.layers.append(nn.Linear(hidden_size, hidden_size))
+            self.layers.append(self.active_func)
+            self.layers.append(self.layer_norm)
+        
+        self._initialize_weights()
 
-    def forward(
-        self,
-        x: Union[Tensor, OptPairTensor],
-        edge_index: Adj,
-        edge_attr: OptTensor = None,
-    ):
+    def _initialize_weights(self):
+        gain = nn.init.calculate_gain('relu' if isinstance(self.active_func, nn.ReLU) else 'tanh')
+        self.init_method(self.lin1.weight, gain=gain)
+        nn.init.constant_(self.lin1.bias, 0)
+        for layer in self.layers:
+            if isinstance(layer, nn.Linear):
+                self.init_method(layer.weight, gain=gain)
+                nn.init.constant_(layer.bias, 0)
+
+    def forward(self, x:Union[Tensor, OptPairTensor], edge_index:Adj, edge_attr:OptTensor=None):
         if self._add_self_loops and edge_attr is None:
             edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
-
+        
         if isinstance(x, Tensor):
             x: OptPairTensor = (x, x)
-
+        
         return self.propagate(edge_index=edge_index, x=x, edge_attr=edge_attr)
 
-    def message(self, x_j: Tensor, edge_attr: OptTensor):
-        """
-        The node_obs obtained from the environment
-        is actually [node_features, node_num, entity_type]
-        x_i' = AGG([x_j, EMB(ent_j), e_ij] : j \in \mathcal{N}(i))
-        """
+    def message(self, x_j:Tensor, edge_attr:OptTensor):
         node_feat_j = x_j[:, :-1]
-        # dont forget to convert to torch.LongTensor
         entity_type_j = x_j[:, -1].long()
         entity_embed_j = self.entity_embed(entity_type_j)
         if edge_attr is not None:
-            # print("node_feat_j{}, entity_embed_j{}, edge_att{}".format(node_feat_j.shape, entity_embed_j.shape, edge_attr.shape))
             node_feat = torch.cat([node_feat_j, entity_embed_j, edge_attr], dim=1)
         else:
             node_feat = torch.cat([node_feat_j, entity_embed_j], dim=1)
         x = self.lin1(node_feat)
-        for i in range(self._layer_N):
-            x = self.lin2[i](x)
+        x = self.active_func(x)
+        x = self.layer_norm(x)
+        
+        for layer in self.layers:
+            x = layer(x)
+        
         return x
 
 
-
-class GNNBase(nn.Module):
-    def __init__(
-        self,
-        args: argparse.Namespace,
-        node_obs_shape: Union[List, Tuple],
-        edge_dim: int,
-        graph_aggr: str,
-    ):
-        super(GNNBase, self).__init__()
-        self.max_edge_dist = args.max_edge_dist
-        self.hidden_size = args.gnn_hidden_size # hidden size of the GNN, also its output dim
-        self.graph_aggr = graph_aggr
-        self.global_aggr_type = args.global_aggr_type
-        self.input_dim = node_obs_shape  # input dim of gnn
-
-        self.num_embeddings = args.num_embeddings  # types of agents
-        self.embedding_size = args.embedding_size  # size of the entity embedding, dim of feature x
-        self.embed_hidden_size = args.embed_hidden_size  # hidden size of the EmbedConv layer, output dim of EmbedConv
-        self.embed_layer_N = args.embed_layer_N
-        self.embed_add_self_loop = args.embed_add_self_loop
+class SimplifiedAttentionNet(nn.Module):
+    """
+    用简单注意力机制替代 Transformer 模块。
+    """
+    def __init__(self,
+                input_dim: int,
+                num_embeddings: int,
+                embedding_size: int,
+                hidden_size: int,
+                layer_N: int,
+                use_ReLU: bool,
+                graph_aggr: str,
+                global_aggr_type: str,
+                embed_hidden_size: int,
+                embed_layer_N: int,
+                embed_use_orthogonal: bool,
+                embed_use_ReLU: bool,
+                embed_use_layerNorm: bool,
+                embed_add_self_loop: bool,
+                max_edge_dist: float,
+                edge_dim: int = 1):
+        super(SimplifiedAttentionNet, self).__init__()
+        self.active_func = nn.ReLU() if use_ReLU else nn.Tanh()
         self.edge_dim = edge_dim
+        self.max_edge_dist = max_edge_dist
+        self.graph_aggr = graph_aggr
+        self.global_aggr_type = global_aggr_type
 
-        self.use_ReLU = args.gnn_use_ReLU
-        self.use_layerNorm = args.use_feature_normalization
-        self.use_orthogonal = args.use_orthogonal
-        self.active_func = [nn.Tanh(), nn.ReLU()][self.use_ReLU]
-        self.layer_norm = [nn.Identity(), nn.LayerNorm(self.hidden_size)][self.use_layerNorm]
-        self.init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self.use_orthogonal]
-        self.gain = nn.init.calculate_gain(["tanh", "relu"][self.use_ReLU])
-
-        def init_(m):
-            return init(m, self.init_method, lambda x: nn.init.constant_(x, 0), gain=self.gain)
-
-        self.fc1 = EmbedConv(
-            input_dim=self.input_dim - 1,
-            num_embeddings=self.num_embeddings,
-            embedding_size=self.embedding_size,
-            hidden_size=self.embed_hidden_size,  # output dim of EmbedConv
-            layer_N=self.embed_layer_N,
-            use_orthogonal=self.use_orthogonal,
-            use_ReLU=self.use_ReLU,
-            use_layerNorm=self.use_layerNorm,
-            add_self_loop= self.embed_add_self_loop,
-            edge_dim=self.edge_dim,
+        # 嵌入层
+        self.embed_layer = EmbedConv(
+            input_dim=input_dim - 1,  # 减1是因为 node_obs = [node_feat, entity_type]
+            num_embeddings=num_embeddings,
+            embedding_size=embedding_size,
+            hidden_size=embed_hidden_size,
+            layer_N=embed_layer_N,
+            use_orthogonal=embed_use_orthogonal,
+            use_ReLU=embed_use_ReLU,
+            use_layerNorm=embed_use_layerNorm,
+            add_self_loop=embed_add_self_loop,
+            edge_dim=edge_dim,
         )
 
-        self.fc2 = nn.Sequential(
-            init_(nn.Linear(self.hidden_size, self.hidden_size)),
+        # 注意力权重计算模块
+        self.attention_weights = nn.Sequential(
+            nn.Linear(embed_hidden_size, hidden_size),
             self.active_func,
-            nn.Linear(self.hidden_size, 1)
+            nn.Linear(hidden_size, 1),
         )
 
-        self.fc3 = nn.Sequential(
-            init_(nn.Linear(self.hidden_size, self.hidden_size)),
-            self.active_func, 
-            self.layer_norm
-        )
-        
-        self.fc4 = nn.Sequential(
-            init_(nn.Linear(self.hidden_size, self.hidden_size)),
-            self.active_func, 
-            self.layer_norm
-        )
+    def forward(self, batch: Batch, agent_id: Tensor):
+        """
+        Args:
+            batch (Batch): 包含节点特征、边索引和边属性的批量图数据。
+            agent_id (Tensor): 特定节点的索引，用于提取特定节点的特征。
 
-    def forward(self, node_obs: torch.Tensor, adj: torch.Tensor, agent_id: torch.Tensor):
-        batch_size = node_obs.shape[0]
-        # print("batch_size: ", batch_size)
-        datalist = []
-        for i in range(batch_size):
-            edge_index, edge_attr = self.processAdj(adj[i])
-            # if edge_attr is only one dimensional
-            if len(edge_attr.shape) == 1:
-                edge_attr = edge_attr.unsqueeze(1)
-            datalist.append(Data(x=node_obs[i], edge_index=edge_index, edge_attr=edge_attr))
-        loader = DataLoader(datalist, shuffle=False, batch_size=batch_size)
-        data = next(iter(loader))
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
-        batch = data.batch
+        Returns:
+            Tensor: 聚合后的图特征或者节点特定特征。
+        """
+        x, edge_index, edge_attr = batch.x, batch.edge_index, batch.edge_attr
+        x = self.embed_layer(x, edge_index, edge_attr)
 
-        if self.edge_dim is None:
-            edge_attr = None
+        # 计算注意力权重
+        alpha = self.attention_weights(x)
+        alpha = F.softmax(alpha, dim=0)  # 注意力归一化
+        x = alpha * x  # 加权节点特征
 
-        embeddings = self.fc1(x, edge_index, edge_attr)
-        edge_weight = self.attention(embeddings)
-        value_embeddings = self.fc3(embeddings)
-        weighted_embeddings = edge_weight * value_embeddings
-        x = self.fc4(weighted_embeddings)
-        
-        x, mask = to_dense_batch(x, batch)
+        x, mask = to_dense_batch(x, batch.batch)
 
-        # only pull the node-specific features from output
         if self.graph_aggr == "node":
-            x = self.gatherNodeFeats(x, agent_id)  # shape [batch_size, out_channels]
-        # perform global pool operation on the node features of the graph
+            return self.gatherNodeFeats(x, agent_id)  # 直接传入 agent_id
         elif self.graph_aggr == "global":
-            x = self.graphAggr(x)
-        return x
+            return self.graphAggr(x)
 
-    def attention(self, x):
-        alpha = self.fc2(x)
-        alpha = F.softmax(alpha, dim=0)
-        return alpha
+        raise ValueError(f"Invalid graph_aggr: {self.graph_aggr}")
 
-    def processAdj(self, adj: torch.Tensor):
-        connect_mask = ((adj < self.max_edge_dist) * (adj > 0)).float()
+    @staticmethod
+    def process_adj(adj: Tensor, max_edge_dist: float) -> Tuple[Tensor, Tensor]:
+        """
+        Process adjacency matrix to filter far away nodes
+        and then obtain the edge_index and edge_weight
+        `adj` is of shape (batch_size, num_nodes, num_nodes)
+        OR (num_nodes, num_nodes)
+        """
+        assert adj.dim() >= 2 and adj.dim() <= 3
+        assert adj.size(-1) == adj.size(-2)
+
+        # filter far away nodes and connection to itself
+        connect_mask = ((adj < max_edge_dist) & (adj > 0)).float()
         adj = adj * connect_mask
+        # print("adj", adj.shape)
+        if adj.dim() == 3:
+            # Case: (batch_size, num_nodes, num_nodes)
+            batch_size, num_nodes, _ = adj.shape
+            edge_index = adj.nonzero(as_tuple=False)
+            edge_attr = adj[edge_index[:, 0], edge_index[:, 1], edge_index[:, 2]]
+            # print("BATCHedge_index", edge_index.shape)
+            # Adjust indices for batched graph
+            batch = edge_index[:, 0] * num_nodes
+            edge_index = torch.stack([batch + edge_index[:, 1], batch + edge_index[:, 2]], dim=0)
+        else:
+            # Case: (num_nodes, num_nodes)
+            edge_index = adj.nonzero(as_tuple=False).t().contiguous()
+            edge_attr = adj[edge_index[0], edge_index[1]]
 
-        index = adj.nonzero(as_tuple=True)
-        edge_attr = adj[index]
-        if len(index) == 3:
-            batch = index[0] * adj.size(-1)
-            index = (batch + index[1], batch + index[2])
+        # Ensure edge_attr is 2D
+        edge_attr = edge_attr.unsqueeze(1) if edge_attr.dim() == 1 else edge_attr
+        # print("edge_index", edge_index.shape)
 
-        return torch.stack(index, dim=0), edge_attr
+        return edge_index, edge_attr
 
-    def gatherNodeFeats(self, x: torch.Tensor, idx: torch.Tensor):
+    def gatherNodeFeats(self, x:Tensor, idx:Tensor):
         out = []
         batch_size, num_nodes, num_feats = x.shape
         idx = idx.long()
         for i in range(idx.shape[1]):
-            idx_tmp = idx[:, i].unsqueeze(-1)
-            idx_tmp = idx_tmp.repeat(1, num_feats)
-            idx_tmp = idx_tmp.unsqueeze(1)
-            gathered_node = x.gather(1, idx_tmp).squeeze(1)
+            idx_tmp = idx[:, i].unsqueeze(-1)  # (batch_size, 1)
+            idx_tmp = idx_tmp.repeat(1, num_feats).unsqueeze(1)  # (batch_size, 1, num_feats)
+            gathered_node = x.gather(1, idx_tmp).squeeze(1)  # (batch_size, num_feats)
             out.append(gathered_node)
-        out = torch.cat(out, dim=1)
-        return out
-    
-    def graphAggr(self, x: torch.Tensor):
-        """
-        Aggregate the graph node features by performing global pool
+        return torch.cat(out, dim=1)  # (batch_size, num_feats*k)
 
-
-        Args:
-            x (Tensor): Tensor of shape [batch_size, num_nodes, num_feats]
-            aggr (str): Aggregation method for performing the global pool
-
-        Raises:
-            ValueError: If `aggr` is not in ['mean', 'max']
-
-        Returns:
-            Tensor: The global aggregated tensor of shape [batch_size, num_feats]
-        """
+    def graphAggr(self, x:Tensor):
         if self.global_aggr_type == "mean":
             return x.mean(dim=1)
         elif self.global_aggr_type == "max":
-            max_feats, idx = x.max(dim=1)
-            return max_feats
+            return x.max(dim=1)[0]
         elif self.global_aggr_type == "add":
             return x.sum(dim=1)
         else:
-            raise ValueError(f"`aggr` should be one of 'mean', 'max', 'add'")
+            raise ValueError(f"Invalid global_aggr_type: {self.global_aggr_type}")
+
+
+class GNNBase(nn.Module):
+    """
+        A Wrapper for constructing the Base graph neural network.
+        This uses TransformerConv from Pytorch Geometric
+        https://pytorch-geometric.readthedocs.io/en/latest/modules/nn.html#torch_geometric.nn.conv.TransformerConv
+        and embedding layers for entity types
+        Params:
+        args: (argparse.Namespace)
+            Should contain the following arguments
+            num_embeddings: (int)
+                Number of entity types in the env to have different embeddings 
+                for each entity type
+            embedding_size: (int)
+                Embedding layer output size for each entity category
+            embed_hidden_size: (int)
+                Hidden layer dimension after the embedding layer
+            embed_layer_N: (int)
+                Number of hidden linear layers after the embedding layer")
+            embed_use_ReLU: (bool)
+                Whether to use ReLU in the linear layers after the embedding layer
+            embed_add_self_loop: (bool)
+                Whether to add self loops in adjacency matrix
+            gnn_hidden_size: (int)
+                Hidden layer dimension in the GNN
+            gnn_num_heads: (int)
+                Number of heads in the transformer conv layer (GNN)
+            gnn_concat_heads: (bool)
+                Whether to concatenate the head output or average
+            gnn_layer_N: (int)
+                Number of GNN conv layers
+            gnn_use_ReLU: (bool)
+                Whether to use ReLU in GNN conv layers
+            max_edge_dist: (float)
+                Maximum distance above which edges cannot be connected between 
+                the entities
+            graph_feat_type: (str)
+                Whether to use 'global' node/edge feats or 'relative'
+                choices=['global', 'relative']
+        node_obs_shape: (Union[Tuple, List])
+            The node observation shape. Example: (18,)
+        edge_dim: (int)
+            Dimensionality of edge attributes 
+    """
+    def __init__(self, args:argparse.Namespace, 
+                node_obs_shape:Union[List, Tuple],
+                edge_dim:int, graph_aggr:str):
+        super(GNNBase, self).__init__()
+
+        self.args = args
+        self.hidden_size = args.gnn_hidden_size
+        self.heads = args.gnn_num_heads
+        self.concat = args.gnn_concat_heads
+
+        self.gnn = SimplifiedAttentionNet(input_dim=node_obs_shape, edge_dim=edge_dim,
+                    num_embeddings=args.num_embeddings,
+                    embedding_size=args.embedding_size,
+                    hidden_size=args.gnn_hidden_size,
+                    layer_N=args.gnn_layer_N,
+                    use_ReLU=args.gnn_use_ReLU,
+                    graph_aggr=graph_aggr,
+                    global_aggr_type=args.global_aggr_type,
+                    embed_hidden_size=args.embed_hidden_size,
+                    embed_layer_N=args.embed_layer_N,
+                    embed_use_orthogonal=args.use_orthogonal,
+                    embed_use_ReLU=args.embed_use_ReLU,
+                    embed_use_layerNorm=args.use_feature_normalization,
+                    embed_add_self_loop=args.embed_add_self_loop,
+                    max_edge_dist=args.max_edge_dist)
+        self.out_dim = args.gnn_hidden_size * (args.gnn_num_heads if args.gnn_concat_heads else 1)
         
-    @property
-    def out_dim(self):
-        return self.hidden_size
+    def forward(self, node_obs:Tensor, adj:Tensor, agent_id:Tensor):
+        batch_size, num_nodes, _ = node_obs.shape
+        edge_index, edge_attr = SimplifiedAttentionNet.process_adj(adj, self.gnn.max_edge_dist)
+        # print("Outer edge_index", edge_index.shape, "node_obs", node_obs.shape, "edge_attr", edge_attr.shape)
+        # Flatten node_obs
+        x = node_obs.view(-1, node_obs.size(-1))
+        # Create batch index
+        batch = torch.arange(batch_size, device=node_obs.device).repeat_interleave(num_nodes)
+        # Create PyG Data object
+        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, batch=batch)
+    
+        # batch = Batch.from_data_list([Data(x=node_obs[i], edge_index=edge_index, edge_attr=edge_attr) 
+        # 						for i in range(node_obs.size(0))])
+        # 将 agent_id 直接传递给 SimplifiedAttentionNet
+        x = self.gnn(data, agent_id)
+
+        if self.gnn.graph_aggr == "node":
+            return x.view(batch_size, -1)
+        return x

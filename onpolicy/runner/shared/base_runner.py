@@ -188,6 +188,9 @@ class Runner(object):
             )
             self.policy.critic.load_state_dict(policy_critic_state_dict)
 
+        # 保存完整的模型，包括结构和参数
+        # torch.save(self.policy.actor, str(self.model_dir) + "/actor_structure.pt")
+
     def process_infos(self, infos):
         """Process infos returned by environment."""
         env_infos = {}

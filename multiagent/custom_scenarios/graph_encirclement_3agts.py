@@ -297,7 +297,7 @@ class Scenario(BaseScenario):
         r_l = np.exp(-k3*abs(d_list[agent.id]))
 
         r_ca = 0
-        penalty = 50.
+        penalty = 25.
         collision_flag = False
         for ego in egos:
             if ego == agent: continue

@@ -30,9 +30,9 @@ class EmbedConv(MessagePassing):
                 use_layerNorm:bool,
                 add_self_loop:bool,
                 edge_dim:int=0):
-        """
+        '''
             EmbedConv Layer which takes in node features, node_type (entity type) 
-            and the  edge features (if they exist)
+            and the edge features (if they exist)
             `entity_embedding` is concatenated with `node_features` and 
             `edge_features` and are passed through linear layers.
             The `message_passing` is similar to GCN layer
@@ -59,7 +59,7 @@ class EmbedConv(MessagePassing):
             edge_dim (int, optional): 
                 Edge feature dimension, If zero then edge features are not 
                 considered. Defaults to 0.
-        """
+        '''
         super(EmbedConv, self).__init__(aggr='add')
         self._layer_N = layer_N
         self._add_self_loops = add_self_loop
@@ -81,7 +81,9 @@ class EmbedConv(MessagePassing):
         # 			init_(nn.Linear(hidden_size, hidden_size)),
         # 			active_func,
         # 			layer_norm)
-        # Define the first linear layer
+        # self.lin2 = get_clones(self.lin_h, self._layer_N)
+
+        # Define the first linear layer, only 1 layer
         self.lin1 = nn.Linear(input_dim + embedding_size + edge_dim, hidden_size)
         
         # Initialize the hidden layers
@@ -93,8 +95,6 @@ class EmbedConv(MessagePassing):
         
         # Apply initialization
         self._initialize_weights()
-        # self.lin2 = get_clones(self.lin_h, self._layer_N)
-
 
     def _initialize_weights(self):
         gain = nn.init.calculate_gain('relu' if isinstance(self.active_func, nn.ReLU) else 'tanh')
@@ -105,19 +105,20 @@ class EmbedConv(MessagePassing):
                 self.init_method(layer.weight, gain=gain)
                 nn.init.constant_(layer.bias, 0)
 
-
     def forward(self, x:Union[Tensor, OptPairTensor], edge_index:Adj,
                 edge_attr:OptTensor=None):
         # print("edge_INDEX", edge_index.shape)
+        # print("EmbedConv forward x", x[0].shape, x[1].shape, "edge_index", edge_index.shape, "edge_attr", edge_attr.shape)
         if self._add_self_loops and edge_attr is None:
             edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
         
         if isinstance(x, Tensor):
             x : OptPairTensor = (x, x)
-        # print("x", x[0].shape, x[1].shape)
+        # print("x", x[0].shape, x[1].shape)  # each x is torch.Size([65, 6])
         # print("edge_index", edge_index.shape)
         return self.propagate(edge_index=edge_index, x=x, edge_attr=edge_attr)
 
+    # MessagePassing类所需要定义的方法，在propagate内部调用
     def message(self, x_j:Tensor, edge_attr:OptTensor):
         """
             The node_obs obtained from the environment
@@ -126,8 +127,8 @@ class EmbedConv(MessagePassing):
             -----------------------
             J: add rewards to the message passer list. Essentially f(x), where x is the reward
         """
-        node_feat_j = x_j[:,:-1]
-        # print("inside gnn", x_j.shape)
+        node_feat_j = x_j[:,:-1]  # [node_features, entity_type], get the first 5 elements(node_features)
+        # print("inside gnn", node_feat_j.shape)
         # dont forget to convert to torch.LongTensor
         entity_type_j = x_j[:,-1].long()
         # print("entity_type_j", entity_type_j.shape,entity_type_j)
@@ -146,7 +147,6 @@ class EmbedConv(MessagePassing):
             x = layer(x)
         
         return x
-
 
 class TransformerConvNet(nn.Module):
     def __init__(self,
@@ -287,8 +287,10 @@ class TransformerConvNet(nn.Module):
         """
 
         x, edge_index, edge_attr = batch.x, batch.edge_index, batch.edge_attr
+        # print("Trans forward x", x.shape, "edge_index", edge_index.shape, "edge_attr", edge_attr.shape)
         x = self.embed_layer(x, edge_index, edge_attr)
         # forward pass through first transfomerConv
+        # print("x", x.shape, "edge_index", edge_index.shape, "edge_attr", edge_attr.shape)  # x torch.Size([65, 16]) edge_index torch.Size([2, 130]) edge_attr torch.Size([130, 1])
         x = self.activation(self.gnn1(x, edge_index, edge_attr))
         for gnn in self.gnn2:
             x = self.activation(gnn(x, edge_index, edge_attr))
@@ -327,55 +329,6 @@ class TransformerConvNet(nn.Module):
         """
         return out_channels + (self.num_heads-1)*self.concat_heads*(out_channels)
 
-    # def processAdj(self, adj:Tensor):
-    # 	"""
-    # 		Process adjacency matrix to filter far away nodes 
-    # 		and then obtain the edge_index and edge_weight
-    # 		`adj` is of shape (batch_size, num_nodes, num_nodes)
-    # 			OR (num_nodes, num_nodes)
-    # 	"""
-    # 	assert adj.dim() >= 2 and adj.dim() <= 3
-    # 	assert adj.size(-1) == adj.size(-2)
-    # 	# filter far away nodes and connection to itself
-    # 	connect_mask = ((adj < self.max_edge_dist) * (adj > 0)).float()
-    # 	adj = adj * connect_mask
-
-    # 	index = adj.nonzero(as_tuple=True)
-    # 	edge_attr = adj[index]
-
-    # 	if len(index) == 3:
-    # 		batch = index[0] * adj.size(-1)
-    # 		index = (batch + index[1], batch + index[2])
-
-    # 	return torch.stack(index, dim=0), edge_attr
-    # @staticmethod
-    # def process_adj(adj, max_edge_dist):
-    # 	assert adj.dim() in [2, 3], f"adj must be 2D or 3D, got {adj.dim()}D"
-    # 	assert adj.size(-1) == adj.size(-2), "adj must be square"
-    # 	print("adj", adj.shape)
-    # 	connect_mask = ((adj < max_edge_dist) & (adj > 0)).float()
-    # 	print("connect_mask", connect_mask.shape)
-    # 	adj = adj * connect_mask
-    # 	print("adj", adj.shape)
-    # 	# edge_index = adj.nonzero(as_tuple=False).t().contiguous()
-    # 	# edge_attr = adj[edge_index[0], edge_index[1]].unsqueeze(1)
-    # 	if adj.dim() == 3:
-    # 		# Handle batched adjacency matrices
-    # 		batch_size, num_nodes, _ = adj.shape
-    # 		batch_index = torch.arange(batch_size, device=adj.device).view(-1, 1, 1).expand(-1, num_nodes, num_nodes)
-    # 		edge_index = torch.nonzero(adj, as_tuple=False)
-    # 		edge_attr = adj[edge_index[:, 0], edge_index[:, 1], edge_index[:, 2]].unsqueeze(1)
-            
-    # 		# Adjust indices for batched graphs
-    # 		edge_index[:, 1] += edge_index[:, 0] * num_nodes
-    # 		edge_index = edge_index[:, 1:]  # Remove batch dimension
-    # 	else:
-    # 		# Handle single adjacency matrix
-    # 		edge_index = torch.nonzero(adj, as_tuple=False).t().contiguous()
-    # 		edge_attr = adj[edge_index[0], edge_index[1]].unsqueeze(1)
-    # 	print("edge_index", edge_index.shape)
-    # 	return edge_index, edge_attr
-
 
     @staticmethod
     def process_adj(adj: Tensor, max_edge_dist: float) -> Tuple[Tensor, Tensor]:
@@ -391,11 +344,12 @@ class TransformerConvNet(nn.Module):
         # filter far away nodes and connection to itself
         connect_mask = ((adj < max_edge_dist) & (adj > 0)).float()
         adj = adj * connect_mask
-        # print("adj", adj.shape)
+        # print("adj", adj.shape)  # (5, 13, 13)
         if adj.dim() == 3:
             # Case: (batch_size, num_nodes, num_nodes)
             batch_size, num_nodes, _ = adj.shape
             edge_index = adj.nonzero(as_tuple=False)
+            # print("edge_index", edge_index)
             edge_attr = adj[edge_index[:, 0], edge_index[:, 1], edge_index[:, 2]]
             # print("BATCHedge_index", edge_index.shape)
             # Adjust indices for batched graph
@@ -553,11 +507,15 @@ class GNNBase(nn.Module):
         self.out_dim = args.gnn_hidden_size * (args.gnn_num_heads if args.gnn_concat_heads else 1)
         
     def forward(self, node_obs:Tensor, adj:Tensor, agent_id:Tensor):
+        # print("GNN forward: node_obs", node_obs.shape, "adj", adj.shape, "agent_id", agent_id.shape)
+        # print("agent_id", agent_id)
         batch_size, num_nodes, _ = node_obs.shape
         edge_index, edge_attr = TransformerConvNet.process_adj(adj, self.gnn.max_edge_dist)
         # print("Outer edge_index", edge_index.shape, "node_obs", node_obs.shape, "edge_attr", edge_attr.shape)
+        # print("edge_index", edge_index, "edge_attr", edge_attr)
         # Flatten node_obs
         x = node_obs.view(-1, node_obs.size(-1))
+        # print("x", x.shape)  # (5, 13, 6) -> [65,6], 一行一行的看，每一行表示一个6维obs，每一行等价
         # Create batch index
         batch = torch.arange(batch_size, device=node_obs.device).repeat_interleave(num_nodes)
         # Create PyG Data object
@@ -566,12 +524,14 @@ class GNNBase(nn.Module):
         # batch = Batch.from_data_list([Data(x=node_obs[i], edge_index=edge_index, edge_attr=edge_attr) 
         # 						for i in range(node_obs.size(0))])
         x = self.gnn(data)
+        # print("x", x.shape)  # （65, 16）
         if self.gnn.graph_aggr == 'node':
             # x = x.view(node_obs.size(0), -1, self.out_dim)
-            x = x.view(batch_size, num_nodes, -1)
+            x = x.view(batch_size, num_nodes, -1)  # [5, 13, 16]
             agent_id = agent_id.long()  # Ensure agent_id is long tensor
             x = x.gather(1, agent_id.unsqueeze(-1).expand(-1, -1, x.size(-1))).squeeze(1)
-        return x
+        # print("x", x.shape)
+        return x  # （5, 16）
     
     # @property
     # def out_dim(self):

@@ -92,7 +92,8 @@ class EmbedConv(MessagePassing):
 
 class SimplifiedAttentionNet(nn.Module):
     """
-    用简单注意力机制替代 Transformer 模块。
+    实现 Communication Enhanced Network (CEN)
+    使用多头图注意力机制（Graph Attention）和软注意力门（Soft Attention Gate）。
     """
     def __init__(self,
                 input_dim: int,
@@ -110,13 +111,15 @@ class SimplifiedAttentionNet(nn.Module):
                 embed_use_layerNorm: bool,
                 embed_add_self_loop: bool,
                 max_edge_dist: float,
-                edge_dim: int = 1):
+                edge_dim: int = 1,
+                num_heads: int = 3):  # 新增参数：多头注意力头数
         super(SimplifiedAttentionNet, self).__init__()
         self.active_func = nn.ReLU() if use_ReLU else nn.Tanh()
         self.edge_dim = edge_dim
         self.max_edge_dist = max_edge_dist
         self.graph_aggr = graph_aggr
         self.global_aggr_type = global_aggr_type
+        self.num_heads = num_heads  # 多头数量
 
         # 嵌入层
         self.embed_layer = EmbedConv(
@@ -132,11 +135,20 @@ class SimplifiedAttentionNet(nn.Module):
             edge_dim=edge_dim,
         )
 
-        # 注意力权重计算模块
-        self.attention_weights = nn.Sequential(
+        # 多头注意力机制
+        self.attention_heads = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(embed_hidden_size, hidden_size),
+                self.active_func,
+                nn.Linear(hidden_size, hidden_size)
+            ) for _ in range(num_heads)
+        ])
+
+        # 软注意力门的权重计算模块
+        self.soft_attention_gate = nn.Sequential(
             nn.Linear(embed_hidden_size, hidden_size),
             self.active_func,
-            nn.Linear(hidden_size, 1),
+            nn.Linear(hidden_size, num_heads)
         )
 
     def forward(self, batch: Batch, agent_id: Tensor):
@@ -151,11 +163,18 @@ class SimplifiedAttentionNet(nn.Module):
         x, edge_index, edge_attr = batch.x, batch.edge_index, batch.edge_attr
         x = self.embed_layer(x, edge_index, edge_attr)
 
-        # 计算注意力权重
-        alpha = self.attention_weights(x)
-        alpha = F.softmax(alpha, dim=0)  # 注意力归一化
-        x = alpha * x  # 加权节点特征
+        # 多头注意力机制：计算每个头的特征
+        head_outputs = [head(x) for head in self.attention_heads]  # List[Tensor]
+        head_outputs = torch.stack(head_outputs, dim=-1)  # Shape: [num_nodes, hidden_size, num_heads]
 
+        # 软注意力门：计算每个头的权重
+        alpha = self.soft_attention_gate(x)  # Shape: [num_nodes, num_heads]
+        alpha = F.softmax(alpha, dim=-1)  # 对每个头的权重进行归一化
+
+        # 聚合多头输出
+        x = (head_outputs * alpha.unsqueeze(1)).sum(dim=-1)  # Shape: [num_nodes, hidden_size]
+
+        # 如果需要，转换为稠密批量
         x, mask = to_dense_batch(x, batch.batch)
 
         if self.graph_aggr == "node":
@@ -179,13 +198,11 @@ class SimplifiedAttentionNet(nn.Module):
         # filter far away nodes and connection to itself
         connect_mask = ((adj < max_edge_dist) & (adj > 0)).float()
         adj = adj * connect_mask
-        # print("adj", adj.shape)
         if adj.dim() == 3:
             # Case: (batch_size, num_nodes, num_nodes)
             batch_size, num_nodes, _ = adj.shape
             edge_index = adj.nonzero(as_tuple=False)
             edge_attr = adj[edge_index[:, 0], edge_index[:, 1], edge_index[:, 2]]
-            # print("BATCHedge_index", edge_index.shape)
             # Adjust indices for batched graph
             batch = edge_index[:, 0] * num_nodes
             edge_index = torch.stack([batch + edge_index[:, 1], batch + edge_index[:, 2]], dim=0)
@@ -196,11 +213,10 @@ class SimplifiedAttentionNet(nn.Module):
 
         # Ensure edge_attr is 2D
         edge_attr = edge_attr.unsqueeze(1) if edge_attr.dim() == 1 else edge_attr
-        # print("edge_index", edge_index.shape)
 
         return edge_index, edge_attr
 
-    def gatherNodeFeats(self, x:Tensor, idx:Tensor):
+    def gatherNodeFeats(self, x: Tensor, idx: Tensor):
         out = []
         batch_size, num_nodes, num_feats = x.shape
         idx = idx.long()
@@ -211,7 +227,7 @@ class SimplifiedAttentionNet(nn.Module):
             out.append(gathered_node)
         return torch.cat(out, dim=1)  # (batch_size, num_feats*k)
 
-    def graphAggr(self, x:Tensor):
+    def graphAggr(self, x: Tensor):
         if self.global_aggr_type == "mean":
             return x.mean(dim=1)
         elif self.global_aggr_type == "max":
@@ -289,7 +305,8 @@ class GNNBase(nn.Module):
                     embed_use_ReLU=args.embed_use_ReLU,
                     embed_use_layerNorm=args.use_feature_normalization,
                     embed_add_self_loop=args.embed_add_self_loop,
-                    max_edge_dist=args.max_edge_dist)
+                    max_edge_dist=args.max_edge_dist,
+                    num_heads=args.gnn_num_heads)
         self.out_dim = args.gnn_hidden_size * (args.gnn_num_heads if args.gnn_concat_heads else 1)
         
     def forward(self, node_obs:Tensor, adj:Tensor, agent_id:Tensor):

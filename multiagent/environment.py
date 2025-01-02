@@ -595,8 +595,8 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
         num_agents = len(self.agents)
         for agent in self.agents:
             node_obs, adj = self.graph_observation_callback(agent, self.world)
-            node_obs_dim = node_obs.shape
-            adj_dim = adj.shape
+            node_obs_dim = node_obs.shape  # (13, 6)
+            adj_dim = adj.shape  # (13, 13)
             edge_dim = 1  # NOTE hardcoding edge dimension
             agent_id_dim = 1  # NOTE hardcoding agent id dimension
             self.node_observation_space.append(
@@ -626,7 +626,7 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
                 )
             )
         
-        # print("node_observation_space: ", self.node_observation_space[0])  # (13, 7)
+        # print("node_observation_space: ", self.node_observation_space[0])  # (13, 6)
         # print("edge_observation_space: ", self.edge_observation_space[0])  # (1, )
         # print("adj_observation_space: ", self.adj_observation_space[0])  # (13, 13)
 
@@ -691,9 +691,10 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
             reward_n = [[reward]] * self.n  # NOTE this line is similar to PPOEnv
 
         # print("reward_n: ", reward_n)
-        # print("node_obs_n: ", node_obs_n[0])
-        # print("adj_n: ", adj_n[0])
-        # print("agent_id_n: ", agent_id_n[0])
+        # print("node_obs_n: ", node_obs_n[0].shape)
+        # print("obs_n: ", obs_n[0].shape)
+        # print("adj_n: ", adj_n[0].shape)
+        # print("agent_id_n: ", agent_id_n[0].shape)
 
         return obs_n, agent_id_n, node_obs_n, adj_n, reward_n, done_n, info_n
 

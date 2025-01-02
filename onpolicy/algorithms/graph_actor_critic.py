@@ -78,10 +78,10 @@ class GR_Actor(nn.Module):
         self.max_batch_size = max_batch_size
         self.tpdv = dict(dtype=torch.float32, device=device)
 
-        obs_shape = get_shape_from_obs_space(obs_space)
-        node_obs_shape = get_shape_from_obs_space(node_obs_space)[1]  # returns (num_nodes, num_node_feats), get 7 from (13, 7)
-        edge_dim = get_shape_from_obs_space(edge_obs_space)[0]  # returns (edge_dim,)
-
+        obs_shape = get_shape_from_obs_space(obs_space)  # returns (6,)
+        node_obs_shape = get_shape_from_obs_space(node_obs_space)[1]  # returns (num_nodes, num_node_feats), get 6 from (13, 6)
+        edge_dim = get_shape_from_obs_space(edge_obs_space)[0]  # returns (1, )
+        # print(edge_dim)
         if self.use_att_gnn:
             from onpolicy.algorithms.utils.gnn import GNNBase
         else:
@@ -175,7 +175,7 @@ class GR_Actor(nn.Module):
                     actor_features.append(actor_feats_batch)
             actor_features = torch.cat(actor_features, dim=0)
         else:
-            # print("node_obs: {}, adj:{}, id:{}".format(node_obs.shape, adj.shape, agent_id))  # (5,13,7)  (5,13,13)
+            # print("node_obs: {}, adj:{}, id:{}".format(node_obs.shape, adj.shape, agent_id))  # (5,13,6)  (5,13,13)
             nbd_features = self.gnn_base(node_obs, adj, agent_id)
             actor_features = torch.cat([obs, nbd_features], dim=1)
             actor_features = self.base(actor_features)
@@ -328,11 +328,10 @@ class GR_Critic(nn.Module):
         ]  # (num_nodes, num_node_feats)
         edge_dim = get_shape_from_obs_space(edge_obs_space)[0]  # (edge_dim,)
 
-        # if self.use_att_gnn:
-        #     from onpolicy.algorithms.utils.gnn import GNNBase
-        # else:
-        #     from onpolicy.algorithms.utils.gnn_transformer import GNNBase
-        from onpolicy.algorithms.utils.gnn_transformer import GNNBase
+        if self.use_att_gnn:
+            from onpolicy.algorithms.utils.gnn import GNNBase
+        else:
+            from onpolicy.algorithms.utils.gnn_transformer import GNNBase
         self.gnn_base = GNNBase(args, node_obs_shape, edge_dim, args.critic_graph_aggr)
         gnn_out_dim = self.gnn_base.out_dim
         # if node aggregation, then concatenate aggregated node features for all agents

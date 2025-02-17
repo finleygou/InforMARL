@@ -42,3 +42,4 @@ do
     --use_att_gnn "False" \
     --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_5agts/rmappo/check/wandb/run-20241014_102649-iop2zn61/files/"
 done
+    # --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_4agts/rmappo/check/wandb/run-20241010_102439-ddd0kms2/files/"

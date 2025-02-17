@@ -516,6 +516,21 @@ class GNNBase(nn.Module):
         # Flatten node_obs
         x = node_obs.view(-1, node_obs.size(-1))
         # print("x", x.shape)  # (5, 13, 6) -> [65,6], 一行一行的看，每一行表示一个6维obs，每一行等价
+        # print("x", x)
+        
+        '''
+        # 手动生成node_obs, edge_index, edge_attr, 模拟单个智能体的数据或的情况
+        x = torch.tensor([[ 0.0000e+00,  0.0000e+00,  0.0000e+00,  0.0000e+00,  1.2000e-01,
+          0.0000e+00],
+        [ 6.8484e-01, -6.8739e-01, -1.5789e-02,  0.0000e+00,  1.2000e-01,
+          0.0000e+00],
+        [-6.2941e-01, -6.2642e-01, -2.6316e-02,  0.0000e+00,  1.2000e-01,
+          0.0000e+00]])
+        edge_index = torch.tensor([[0, 0, 0, 1, 1, 1, 1, 2, 2, 2],
+                                  [0, 0, 0, 1, 1, 1, 1, 2, 2, 2]])
+        edge_attr = torch.tensor([[0.], [0.], [0.], [1.], [1.], [1.], [1.], [2.], [2.], [2.]])
+        '''
+
         # Create batch index
         batch = torch.arange(batch_size, device=node_obs.device).repeat_interleave(num_nodes)
         # Create PyG Data object

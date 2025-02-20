@@ -36,11 +36,12 @@ do
     --n_rollout_threads 1 \
     --use_lstm "True" \
     --episode_length ${ep_lens} \
-    --render_episodes 1 \
     --ppo_epoch 15 --use_ReLU --gain 0.01 \
     --user_name "finleygou" \
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
+    --monte_carlo_test "True" \
+    --render_episodes 1 \
     --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts_tune/rmappo/check/wandb/run-20241024_114228-vuqrvrsw/files/"
 done

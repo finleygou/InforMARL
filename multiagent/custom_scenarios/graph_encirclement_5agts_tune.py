@@ -341,6 +341,8 @@ class Scenario(BaseScenario):
 
         ####### calculate dones ########
         dones = []
+        world.dist_error = 0
+        world.angle_error = 0
         for ego in egos:
             di_adv = np.linalg.norm(target.state.p_pos - ego.state.p_pos) 
             di_adv_lft = di_adv - self.d_cap
@@ -348,6 +350,9 @@ class Scenario(BaseScenario):
             if di_adv_lft<self.d_lft_band and di_adv>self.dleft_lb and abs(left_nb_angle_ - self.exp_alpha)<self.delta_angle_band and abs(right_nb_angle_ - self.exp_alpha)<self.delta_angle_band: # 30°
                 dones.append(True)
             else: dones.append(False)
+            world.dist_error += abs(di_adv_lft)
+            world.angle_error += (abs(left_nb_angle_ - self.exp_alpha) + abs(right_nb_angle_ - self.exp_alpha))
+        
         # print(dones)
         if all(dones)==True:  
             agent.done = True

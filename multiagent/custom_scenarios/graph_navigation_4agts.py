@@ -255,6 +255,7 @@ class Scenario(BaseScenario):
         r_d = np.exp(-k*dist_to_goal)
         if dist_to_goal<self.d_lft_band and not collision_flag:
             r_d += 5
+            agent.done = True
 
         r_step = r_d + r_ca
 

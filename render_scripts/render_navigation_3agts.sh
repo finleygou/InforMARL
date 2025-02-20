@@ -41,5 +41,7 @@ do
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
+    --monte_carlo_test "False" \
+    --render_episodes 1 \
     --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_navigation_3agts/rmappo/check/wandb/run-20241012_130605-sgf7yy9n/files/"
 done

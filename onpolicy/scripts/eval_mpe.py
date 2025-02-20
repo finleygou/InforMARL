@@ -210,6 +210,7 @@ def main(args):
     if all_args.save_data:
         from multiagent.environment import INFO
         #csv
+        # print("INFO", INFO)
         file = open('INFO.csv', 'w', encoding='utf-8', newline="")
         writer = csv.writer(file)
         # writer.writerow(['id', 'pos_x', 'pos_y', 'vel', 'phi'])

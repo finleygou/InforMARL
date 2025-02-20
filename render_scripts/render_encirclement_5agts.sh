@@ -13,7 +13,7 @@ do
     # execute the script with different params
     python ../onpolicy/scripts/eval_mpe.py \
     --use_valuenorm --use_popart \
-    --project_name "GP_Graph" \
+    --project_name "GP_Graph_RNN" \
     --env_name "GraphMPE" \
     --algorithm_name "rmappo" \
     --seed ${seed} \
@@ -23,9 +23,9 @@ do
     --hidden_size 64 \
     --layer_N 1 \
     --use_wandb "False" \
-    --save_gifs "True" \
+    --save_gifs "False" \
     --use_render "True" \
-    --save_data "False" \
+    --save_data "True" \
     --use_curriculum "False" \
     --use_policy "False" \
     --gp_type "encirclement" \
@@ -36,11 +36,12 @@ do
     --n_rollout_threads 1 \
     --use_lstm "True" \
     --episode_length ${ep_lens} \
-    --render_episodes 1 \
     --ppo_epoch 15 --use_ReLU --gain 0.01 \
     --user_name "finleygou" \
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts/rmappo/check/wandb/run-20241023_084809-k89yapt1/files/"
+    --monte_carlo_test "False" \
+    --render_episodes 1 \
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts/rmappo/check/wandb/run-20241030_080741-9tua31a4/files/"
 done

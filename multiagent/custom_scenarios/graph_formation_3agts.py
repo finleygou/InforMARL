@@ -281,7 +281,7 @@ class Scenario(BaseScenario):
         # elif 0.65 < e_f_value <= 0.75:
         #     r_fom = -1
         # else:
-        #     r_fom = -2
+        #     r_fom = -2  
 
         if 0 <= e_f_value <= self.error_band:
             r_fom = 1
@@ -291,6 +291,7 @@ class Scenario(BaseScenario):
             r_fom = -1
         else:
             r_fom = -2
+        world.formation_error = e_f_value
         
         # collision reward
         r_ca = 0

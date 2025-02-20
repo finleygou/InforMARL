@@ -106,7 +106,7 @@ class Scenario(BaseScenario):
 
         self.assign_list = rand_assign_targets(self.num_egos, self.num_egos)  
         # [0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]
-        # self.assign_list = [2,1,0]
+        # self.assign_list = [0,1,2]
         goal_pos = np.array([[-0.9, 3.6], [0.1, 4.0], [1.1, 4.4]])
         init_pos_ego = np.array([[-0.8, 0.], [0.0, 0.0], [0.8, 0.0]])
         init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
@@ -264,6 +264,7 @@ class Scenario(BaseScenario):
         r_d = np.exp(-k*dist_to_goal)
         if dist_to_goal<self.d_lft_band and not collision_flag:
             r_d += 5
+            agent.done = True
 
         r_step = r_d + r_ca
 

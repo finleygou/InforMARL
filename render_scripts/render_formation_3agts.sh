@@ -24,7 +24,7 @@ do
     --use_wandb "False" \
     --save_gifs "False" \
     --use_render "True" \
-    --save_data "False" \
+    --save_data "True" \
     --use_curriculum "False" \
     --use_policy "False" \
     --gp_type "formation" \
@@ -35,11 +35,12 @@ do
     --n_rollout_threads 1 \
     --use_lstm "True" \
     --episode_length ${ep_lens} \
-    --render_episodes 1 \
     --ppo_epoch 15 --use_ReLU --gain 0.01 \
     --user_name "finleygou" \
     --use_cent_obs "False" \
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
+    --monte_carlo_test "False" \
+    --render_episodes 1 \
     --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_formation_3agts/rmappo/check/wandb/run-20241015_102115-wqgkjh7w/files/"
 done

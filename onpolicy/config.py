@@ -327,7 +327,7 @@ def graph_config(args, parser):
                         help="Whether we want to pull node specific features from the output or perform global_pool on all nodes.")
     parser.add_argument("--global_aggr_type", type=str, default="mean", choices=["mean", "max", "add"], help="The type of aggregation to perform if `graph_aggr` is `global`")
     parser.add_argument("--use_cent_obs", type=lambda x: bool(strtobool(x)), default=True, help="Whether to use centralized observation for critic or not")
-    parser.add_argument("--use_att_gnn", type=lambda x: bool(strtobool(x)), default=True, help="Whether to use attention gnn or transformer gnn")
+    parser.add_argument("--use_att_gnn", type=lambda x: bool(strtobool(x)), default=True, help="Whether to use attention gnn [NT,cen] or transformer gnn")
     parser.add_argument("--auto_mini_batch_size", type=lambda x: bool(strtobool(x)), default=False, help="Whether to automatically set mini batch size")
     parser.add_argument("--target_mini_batch_size", type=int, default=32, help="The target mini batch size to use")
 

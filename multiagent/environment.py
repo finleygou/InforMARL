@@ -50,6 +50,21 @@ class MultiAgentBaseEnv(gym.Env):
         # terminate
         self.is_terminate = False
 
+        # record episode information, only monte_carlo_test is True
+        self.monte_carlo_test = args.monte_carlo_test
+        self.round = 1
+        self.last_step = 0
+        self.collision_th = 2
+        self.data_ = ()
+        self.INFO_flag = 0
+        self.collision_num = 0
+        self.reward_all = 0
+        if self.args.gp_type == 'formation':
+            self.formation_error = 0
+        elif self.args.gp_type == 'encirclement':
+            self.dist_error = 0
+            self.angle_error = 0
+
         self.world = world
         self.world_length = self.world.world_length
         self.current_step = 0
@@ -274,223 +289,261 @@ class MultiAgentBaseEnv(gym.Env):
 
     # render environment
     def render(self, mode: str = "human", close: bool = False) -> List:
-        if close:
-            # close any existic renderers
-            for i, viewer in enumerate(self.viewers):
-                if viewer is not None:
-                    viewer.close()
-                self.viewers[i] = None
-            return []
+        if self.monte_carlo_test:
+            # print(self.current_step)
+            if self.current_step == self.world_length-1 and self.INFO_flag == 0:
+                self.data_ = self.data_ + (self.round, int(self.is_terminate), self.current_step,)
+                if self.args.gp_type == 'encirclement':
+                    self.data_ = self.data_ + (self.angle_error/self.n, self.dist_error/self.n, )
+                # INFO.append(data_)  # 增加行
+                # print("round:{} current_step:{} is_terminate:{}".format(self.round, self.current_step, self.is_terminate))
+                self.INFO_flag = 1
+                self.round += 1
+            elif self.is_terminate == True and self.INFO_flag == 0:
+                self.data_ = self.data_ + (self.round, int(self.is_terminate), self.current_step,)
+                if self.args.gp_type == 'encirclement':
+                    self.data_ = self.data_ + (self.angle_error/self.n, self.dist_error/self.n, )
+                # INFO.append(data_)  # 增加行
+                # print("round:{} current_step:{} is_terminate:{}".format(self.round, self.current_step, self.is_terminate))
+                self.INFO_flag = 1
+                self.round += 1
 
-        if mode == "human":
-            alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            message = ""
-            for agent in self.world.agents:
-                comm = []
-                for other in self.world.agents:
-                    if other is agent:
-                        continue
-                    if np.all(other.state.c == 0):
-                        word = "_"
-                    else:
-                        word = alphabet[np.argmax(other.state.c)]
-                    message += other.name + " to " + agent.name + ": " + word + "   "
-            # print(message)
+            if self.current_step == 0:
+                # reset parameters
+                self.data_ = ()
+                self.is_terminate = False
+                self.INFO_flag = 0
+                self.collision_num = 0
+                self.reward_all = 0
+                if self.args.gp_type == 'formation':
+                    self.formation_error = 0
+                elif self.args.gp_type == 'encirclement':
+                    self.dist_error = 0
+                    self.angle_error = 0
+            elif self.current_step == self.world_length-1:
+                self.data_ = self.data_ + (self.reward_all/self.world_length, self.collision_num, )
+                if self.args.gp_type == 'formation':
+                    self.data_ = self.data_ + (self.formation_error/self.world_length/self.n, )
+                print("round:{}".format(self.data_[0]))
+                INFO.append(self.data_)  # 增加行
+        else:
+            if close:
+                # close any existic renderers
+                for i, viewer in enumerate(self.viewers):
+                    if viewer is not None:
+                        viewer.close()
+                    self.viewers[i] = None
+                return []
 
-        for i in range(len(self.viewers)):
-            # create viewers (if necessary)
-            if self.viewers[i] is None:
+            if mode == "human":
+                alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                message = ""
+                for agent in self.world.agents:
+                    comm = []
+                    for other in self.world.agents:
+                        if other is agent:
+                            continue
+                        if np.all(other.state.c == 0):
+                            word = "_"
+                        else:
+                            word = alphabet[np.argmax(other.state.c)]
+                        message += other.name + " to " + agent.name + ": " + word + "   "
+                # print(message)
+
+            for i in range(len(self.viewers)):
+                # create viewers (if necessary)
+                if self.viewers[i] is None:
+                    # import rendering only if we need it
+                    # (and don't import for headless machines)
+                    # from gym.envs.classic_control import rendering
+                    from multiagent import rendering
+
+                    self.viewers[i] = rendering.Viewer(700, 700)
+
+            # create rendering geometry
+            if self.render_geoms is None:
                 # import rendering only if we need it
                 # (and don't import for headless machines)
                 # from gym.envs.classic_control import rendering
                 from multiagent import rendering
 
-                self.viewers[i] = rendering.Viewer(700, 700)
+                self.render_geoms = []
+                self.render_geoms_xform = []
+                self.line = {}
+                self.comm_geoms = []
 
-        # create rendering geometry
-        if self.render_geoms is None:
-            # import rendering only if we need it
-            # (and don't import for headless machines)
-            # from gym.envs.classic_control import rendering
-            from multiagent import rendering
+                for entity in self.world.entities:
+                    if entity.name=="obstacle":
+                        radius = entity.R
+                    else:
+                        radius = entity.size
+                    geom = rendering.make_circle(radius)  # drawing entity 
+                    xform = rendering.Transform()
 
-            self.render_geoms = []
-            self.render_geoms_xform = []
-            self.line = {}
-            self.comm_geoms = []
+                    entity_comm_geoms = []
 
-            for entity in self.world.entities:
-                if entity.name=="obstacle":
-                    radius = entity.R
-                else:
-                    radius = entity.size
-                geom = rendering.make_circle(radius)  # drawing entity 
-                xform = rendering.Transform()
+                    if "agent" in entity.name:
+                        geom.set_color(*entity.color, alpha=0.5)
 
-                entity_comm_geoms = []
+                        if not entity.silent:
+                            dim_c = self.world.dim_c
+                            # make circles to represent communication
+                            for ci in range(dim_c):
+                                comm = rendering.make_circle(entity.size / dim_c)
+                                comm.set_color(1, 1, 1)
+                                comm.add_attr(xform)
+                                offset = rendering.Transform()
+                                comm_size = entity.size / dim_c
+                                offset.set_translation(
+                                    ci * comm_size * 2 - entity.size + comm_size, 0
+                                )
+                                comm.add_attr(offset)
+                                entity_comm_geoms.append(comm)
 
-                if "agent" in entity.name:
-                    geom.set_color(*entity.color, alpha=0.5)
-
-                    if not entity.silent:
-                        dim_c = self.world.dim_c
-                        # make circles to represent communication
-                        for ci in range(dim_c):
-                            comm = rendering.make_circle(entity.size / dim_c)
-                            comm.set_color(1, 1, 1)
-                            comm.add_attr(xform)
-                            offset = rendering.Transform()
-                            comm_size = entity.size / dim_c
-                            offset.set_translation(
-                                ci * comm_size * 2 - entity.size + comm_size, 0
-                            )
-                            comm.add_attr(offset)
-                            entity_comm_geoms.append(comm)
-
-                else:
-                    geom.set_color(*entity.color)
-                    if entity.channel is not None:
-                        dim_c = self.world.dim_c
-                        # make circles to represent communication
-                        for ci in range(dim_c):
-                            comm = rendering.make_circle(entity.size / dim_c)
-                            comm.set_color(1, 1, 1)
-                            comm.add_attr(xform)
-                            offset = rendering.Transform()
-                            comm_size = entity.size / dim_c
-                            offset.set_translation(
-                                ci * comm_size * 2 - entity.size + comm_size, 0
-                            )
-                            comm.add_attr(offset)
-                            entity_comm_geoms.append(comm)
-                geom.add_attr(xform)
-                self.render_geoms.append(geom)
-                self.render_geoms_xform.append(xform)
-                self.comm_geoms.append(entity_comm_geoms)
-
-            for wall in self.world.walls:
-                corners = (
-                    (wall.axis_pos - 0.5 * wall.width, wall.endpoints[0]),
-                    (wall.axis_pos - 0.5 * wall.width, wall.endpoints[1]),
-                    (wall.axis_pos + 0.5 * wall.width, wall.endpoints[1]),
-                    (wall.axis_pos + 0.5 * wall.width, wall.endpoints[0]),
-                )
-                if wall.orient == "H":
-                    corners = tuple(c[::-1] for c in corners)
-                geom = rendering.make_polygon(corners)
-                if wall.hard:
-                    geom.set_color(*wall.color)
-                else:
-                    geom.set_color(*wall.color, alpha=0.5)
-                self.render_geoms.append(geom)
-
-            # add geoms to viewer
-            # for viewer in self.viewers:
-            #     viewer.geoms = []
-            #     for geom in self.render_geoms:
-            #         viewer.add_geom(geom)
-
-            for viewer in self.viewers:
-                viewer.geoms = []
-                for geom in self.render_geoms:
-                    viewer.add_geom(geom)
-                for entity_comm_geoms in self.comm_geoms:
-                    for geom in entity_comm_geoms:
-                        viewer.add_geom(geom)
-
-        results = []
-        for i in range(len(self.viewers)):
-            from multiagent import rendering
-
-            if self.shared_viewer:
-                pos = np.zeros(self.world.dim_p)
-            else:
-                pos = self.agents[i].state.p_pos
-            # self.viewers[i].set_bounds(
-            #     pos[0] - cam_range,
-            #     pos[0] + cam_range,
-            #     pos[1] - cam_range,
-            #     pos[1] + cam_range,
-            # )
-            self.viewers[i].set_bounds(-10, 10, -5, 15)
-
-            # save traj data 
-            # print(self.args.save_data)
-            if self.args.save_data:
-                data_ = ()
-                for j, ego in enumerate(self.world.egos):
-                    data_ = data_ + (j, ego.state.p_pos[0], ego.state.p_pos[1], ego.state.p_vel[0], ego.state.p_vel[1])
-                for j, dob in enumerate(self.world.dynamic_obstacles):
-                    data_ = data_ + (j, dob.state.p_pos[0], dob.state.p_pos[1], dob.state.p_vel[0], dob.state.p_vel[1])
-                for j, obs in enumerate(self.world.obstacles):
-                    data_ = data_ + (j, obs.state.p_pos[0], obs.state.p_pos[1], obs.R)
-                for j, target in enumerate(self.world.targets):
-                    data_ = data_ + (j, target.state.p_pos[0], target.state.p_pos[1], target.state.p_vel[0], target.state.p_vel[1])
-                
-                INFO.append(data_)
-
-
-            # update geometry positions
-            for e, entity in enumerate(self.world.entities):
-                self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
-                if "agent" in entity.name:
-                    self.render_geoms[e].set_color(*entity.color, alpha=0.5)
-
-                    if not entity.silent:
-                        for ci in range(self.world.dim_c):
-                            color = 1 - entity.state.c[ci]
-                            self.comm_geoms[e][ci].set_color(color, color, color)
-                else:
-                    self.render_geoms[e].set_color(*entity.color)
-                    if entity.channel is not None:
-                        for ci in range(self.world.dim_c):
-                            color = 1 - entity.channel[ci]
-                            self.comm_geoms[e][ci].set_color(color, color, color)
-
-            # plot target points
-            if 'navigation' in self.gp_type:
-                m = len(self.render_geoms)
-                for k, ego in enumerate(self.world.egos):
-                    geom = rendering.make_moving_circle(radius=ego.R, pos=ego.goal)  # entity.size
-                    geom.set_color(*ego.goal_color)
+                    else:
+                        geom.set_color(*entity.color)
+                        if entity.channel is not None:
+                            dim_c = self.world.dim_c
+                            # make circles to represent communication
+                            for ci in range(dim_c):
+                                comm = rendering.make_circle(entity.size / dim_c)
+                                comm.set_color(1, 1, 1)
+                                comm.add_attr(xform)
+                                offset = rendering.Transform()
+                                comm_size = entity.size / dim_c
+                                offset.set_translation(
+                                    ci * comm_size * 2 - entity.size + comm_size, 0
+                                )
+                                comm.add_attr(offset)
+                                entity_comm_geoms.append(comm)
+                    geom.add_attr(xform)
                     self.render_geoms.append(geom)
-                    self.render_geoms[m+k] = self.viewers[i].draw_moving_circle(radius=ego.R, color=ego.goal_color, pos=ego.goal)
+                    self.render_geoms_xform.append(xform)
+                    self.comm_geoms.append(entity_comm_geoms)
 
-            if 'formation' in self.gp_type:
-                m = len(self.render_geoms)
-                for k, ego in enumerate(self.world.egos):
-                    if ego.is_leader:
-                        geom = rendering.make_moving_circle(radius=0.1, pos=ego.goal)
+                for wall in self.world.walls:
+                    corners = (
+                        (wall.axis_pos - 0.5 * wall.width, wall.endpoints[0]),
+                        (wall.axis_pos - 0.5 * wall.width, wall.endpoints[1]),
+                        (wall.axis_pos + 0.5 * wall.width, wall.endpoints[1]),
+                        (wall.axis_pos + 0.5 * wall.width, wall.endpoints[0]),
+                    )
+                    if wall.orient == "H":
+                        corners = tuple(c[::-1] for c in corners)
+                    geom = rendering.make_polygon(corners)
+                    if wall.hard:
+                        geom.set_color(*wall.color)
+                    else:
+                        geom.set_color(*wall.color, alpha=0.5)
+                    self.render_geoms.append(geom)
+
+                # add geoms to viewer
+                # for viewer in self.viewers:
+                #     viewer.geoms = []
+                #     for geom in self.render_geoms:
+                #         viewer.add_geom(geom)
+
+                for viewer in self.viewers:
+                    viewer.geoms = []
+                    for geom in self.render_geoms:
+                        viewer.add_geom(geom)
+                    for entity_comm_geoms in self.comm_geoms:
+                        for geom in entity_comm_geoms:
+                            viewer.add_geom(geom)
+
+            results = []
+            for i in range(len(self.viewers)):
+                from multiagent import rendering
+
+                if self.shared_viewer:
+                    pos = np.zeros(self.world.dim_p)
+                else:
+                    pos = self.agents[i].state.p_pos
+                # self.viewers[i].set_bounds(
+                #     pos[0] - cam_range,
+                #     pos[0] + cam_range,
+                #     pos[1] - cam_range,
+                #     pos[1] + cam_range,
+                # )
+                self.viewers[i].set_bounds(-10, 10, -5, 15)
+
+                # save traj data 
+                # print(self.args.save_data)
+                if self.args.save_data:
+                    data_ = ()
+                    for j, ego in enumerate(self.world.egos):
+                        data_ = data_ + (j, ego.state.p_pos[0], ego.state.p_pos[1], ego.state.p_vel[0], ego.state.p_vel[1])
+                    for j, dob in enumerate(self.world.dynamic_obstacles):
+                        data_ = data_ + (j, dob.state.p_pos[0], dob.state.p_pos[1], dob.state.p_vel[0], dob.state.p_vel[1])
+                    for j, obs in enumerate(self.world.obstacles):
+                        data_ = data_ + (j, obs.state.p_pos[0], obs.state.p_pos[1], obs.R)
+                    for j, target in enumerate(self.world.targets):
+                        data_ = data_ + (j, target.state.p_pos[0], target.state.p_pos[1], target.state.p_vel[0], target.state.p_vel[1])
+                    
+                    INFO.append(data_)
+
+
+                # update geometry positions
+                for e, entity in enumerate(self.world.entities):
+                    self.render_geoms_xform[e].set_translation(*entity.state.p_pos)
+                    if "agent" in entity.name:
+                        self.render_geoms[e].set_color(*entity.color, alpha=0.5)
+
+                        if not entity.silent:
+                            for ci in range(self.world.dim_c):
+                                color = 1 - entity.state.c[ci]
+                                self.comm_geoms[e][ci].set_color(color, color, color)
+                    else:
+                        self.render_geoms[e].set_color(*entity.color)
+                        if entity.channel is not None:
+                            for ci in range(self.world.dim_c):
+                                color = 1 - entity.channel[ci]
+                                self.comm_geoms[e][ci].set_color(color, color, color)
+
+                # plot target points
+                if 'navigation' in self.gp_type:
+                    m = len(self.render_geoms)
+                    for k, ego in enumerate(self.world.egos):
+                        geom = rendering.make_moving_circle(radius=ego.R, pos=ego.goal)  # entity.size
                         geom.set_color(*ego.goal_color)
                         self.render_geoms.append(geom)
-                        self.render_geoms[m] = self.viewers[i].draw_moving_circle(radius=0.1, color=ego.goal_color, pos=ego.goal)
+                        self.render_geoms[m+k] = self.viewers[i].draw_moving_circle(radius=ego.R, color=ego.goal_color, pos=ego.goal)
 
-            m = len(self.line)
-            for k, agent in enumerate(self.world.agents):
-                if not agent.done:
-                    self.line[m+k] = self.viewers[i].draw_line(agent.state.p_pos, agent.state.p_pos+agent.state.p_vel*1.0)
-                    self.line[m+k].set_color(*agent.color, alpha=0.5)
+                if 'formation' in self.gp_type:
+                    m = len(self.render_geoms)
+                    for k, ego in enumerate(self.world.egos):
+                        if ego.is_leader:
+                            geom = rendering.make_moving_circle(radius=0.1, pos=ego.goal)
+                            geom.set_color(*ego.goal_color)
+                            self.render_geoms.append(geom)
+                            self.render_geoms[m] = self.viewers[i].draw_moving_circle(radius=0.1, color=ego.goal_color, pos=ego.goal)
 
-            # render the graph connections
-            if hasattr(self.world, "graph_mode"):
-                if self.world.graph_mode:
-                    edge_list = self.world.edge_list.T
-                    assert edge_list is not None, "Edge list should not be None"
-                    for entity1 in self.world.entities:
-                        for entity2 in self.world.entities:
-                            e1_id, e2_id = entity1.global_id, entity2.global_id
-                            if e1_id == e2_id:
-                                continue
-                            # if edge exists draw a line
-                            if [e1_id, e2_id] in edge_list.tolist():
-                                src = entity1.state.p_pos
-                                dest = entity2.state.p_pos
-                                self.viewers[i].draw_line(start=src, end=dest)
+                m = len(self.line)
+                for k, agent in enumerate(self.world.agents):
+                    if not agent.done:
+                        self.line[m+k] = self.viewers[i].draw_line(agent.state.p_pos, agent.state.p_pos+agent.state.p_vel*1.0)
+                        self.line[m+k].set_color(*agent.color, alpha=0.5)
 
-            # render to display or array
-            results.append(self.viewers[i].render(return_rgb_array=mode == "rgb_array"))
+                # render the graph connections
+                if hasattr(self.world, "graph_mode"):
+                    if self.world.graph_mode:
+                        edge_list = self.world.edge_list.T
+                        assert edge_list is not None, "Edge list should not be None"
+                        for entity1 in self.world.entities:
+                            for entity2 in self.world.entities:
+                                e1_id, e2_id = entity1.global_id, entity2.global_id
+                                if e1_id == e2_id:
+                                    continue
+                                # if edge exists draw a line
+                                if [e1_id, e2_id] in edge_list.tolist():
+                                    src = entity1.state.p_pos
+                                    dest = entity2.state.p_pos
+                                    self.viewers[i].draw_line(start=src, end=dest)
 
-        return results
+                # render to display or array
+                results.append(self.viewers[i].render(return_rgb_array=mode == "rgb_array"))
+
+            return results
 
     # create receptor field locations in local coordinate frame
     def _make_receptor_locations(self, agent: Agent) -> List:
@@ -649,7 +702,9 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
 
         # advance world state
         self.world.step()
+
         # record observation for each agent
+        done_check = []
         for agent in self.agents:
             obs_n.append(self._get_obs(agent))
             agent_id_n.append(self._get_id(agent))
@@ -659,36 +714,65 @@ class MultiAgentGraphEnv(MultiAgentBaseEnv):
             done_n.append(self._get_done(agent))
             reward = self._get_reward(agent)
             reward_n.append([reward])
+            done_check.append(agent.done)
             info = {"individual_reward": reward}
             env_info = self._get_info(agent)
             info.update(env_info)  # nothing fancy here, just appending dict to dict
             info_n.append(info)
 
+            if self.monte_carlo_test:
+                # check collision
+                for ego in self.world.egos:
+                    if ego == agent: pass
+                    else:
+                        d_ij = np.linalg.norm(agent.state.p_pos - ego.state.p_pos)
+                        if d_ij < agent.R + ego.R:
+                            self.collision_num += 1
+                for obs in self.world.obstacles:
+                    d_ij = np.linalg.norm(agent.state.p_pos - obs.state.p_pos)
+                    if d_ij < agent.R + obs.R:
+                        self.collision_num += 1
+                for dobs in self.world.dynamic_obstacles:
+                    d_ij = np.linalg.norm(agent.state.p_pos - dobs.state.p_pos)
+                    if d_ij < agent.R + dobs.R:
+                        self.collision_num += 1
+
+                if self.args.gp_type == 'formation':
+                    self.formation_error += self.world.formation_error
+                elif self.args.gp_type == 'encirclement':
+                    self.dist_error = self.world.dist_error
+                    self.angle_error = self.world.angle_error
+
         # supervise dones number and check terminate
         terminate = []
+        check_terminate = done_check if self.monte_carlo_test else done_n # for recording 
         if 'formation' in self.gp_type:
-            if any(done_n):
+            if any(check_terminate):
                 terminate = [True] * self.n
             else:
                 terminate = [False] * self.n
         elif 'encirclement' in self.gp_type:
-            terminate = done_n
+            terminate = check_terminate
             # if self.world.targets[0].done:
             #     print("step{} target done".format(self.current_step))
         elif 'navigation' in self.gp_type:
-            if all(done_n):
+            if all(check_terminate):
                 terminate = [True] * self.n
             else:
                 terminate = [False] * self.n
             
-        self.is_terminate = True if all(terminate) else False
+        self.is_terminate = True if all(terminate) and self.collision_num/self.n <= self.collision_th else False  # col num < thre, we also think success
+        
         if self.is_terminate:
-            done_n = [True] * self.n
+            # done_n = [True] * self.n
+            # this will affect the data recording
+            pass
 
         # all agents get total reward in cooperative case
         reward = np.sum(reward_n)
         if self.shared_reward:
             reward_n = [[reward]] * self.n  # NOTE this line is similar to PPOEnv
+        self.reward_all += reward  # record total reward over a trajectory
 
         # print("reward_n: ", reward_n)
         # print("node_obs_n: ", node_obs_n[0].shape)

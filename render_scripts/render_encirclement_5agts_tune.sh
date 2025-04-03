@@ -42,6 +42,6 @@ do
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
     --monte_carlo_test "True" \
-    --render_episodes 1 \
+    --render_episodes 100 \
     --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_5agts_tune/rmappo/check/wandb/run-20241024_114228-vuqrvrsw/files/"
 done

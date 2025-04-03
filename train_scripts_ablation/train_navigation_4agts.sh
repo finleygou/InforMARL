@@ -2,7 +2,7 @@
 
 # Run the script
 seed_max=1
-n_agents=3
+n_agents=4
 # graph_feat_types=("global" "global" "relative" "relative")
 # cent_obs=("True" "False" "True" "False")
 ep_lens=200
@@ -14,21 +14,21 @@ echo "seed: ${seed}"
 # execute the script with different params
 CUDA_VISIBLE_DEVICES='3' python  ../onpolicy/scripts/train_mpe.py \
 --use_valuenorm --use_popart \
---project_name "GP_Graph" \
+--project_name "GP_Graph_ABL" \
 --env_name "GraphMPE" \
 --algorithm_name "rmappo" \
 --seed ${seed} \
 --experiment_name "check" \
---scenario_name "graph_navigation_3agts" \
+--scenario_name "graph_navigation_4agts" \
 --clip_param 0.15 --gamma 0.985 \
 --hidden_size 64 --layer_N 1 \
---num_target 0 --num_agents 3 --num_obstacle 4 --num_dynamic_obs 4 \
---gp_type "navigation_rvo" \
+--num_target 0 --num_agents 4 --num_obstacle 4 --num_dynamic_obs 4 \
+--gp_type "navigation" \
 --save_data "True" \
---reward_file_name "r_navigation_3agts-RVO" \
+--reward_file_name "r_navigation_4agts" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.4 --cp 0.4 --js_ratio 0.65 \
+--guide_cp 0.3 --cp 0.3 --js_ratio 0.7 \
 --use_wandb "True" \
 --n_training_threads 16 --n_rollout_threads 32 \
 --use_lstm "True" \

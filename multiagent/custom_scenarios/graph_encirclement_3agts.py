@@ -335,7 +335,7 @@ class Scenario(BaseScenario):
 
         # print(dones)
         if all(dones)==True:  
-            agent.done = True
+            # agent.done = True  # set true when rendering monte carlo 
             target.done = True
             return 5+r_step
         else:  agent.done = False

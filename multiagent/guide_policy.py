@@ -215,8 +215,8 @@ def guide_policy_navigation(world):
     edge_list = world.edge_list.tolist()
     edge_num = len(edge_list[1])  # each edge is calculated twice
 
-    k1 = 0.5  # goal coefficient
-    k_obs = 1.5  # obstacle coefficient
+    k1 = 0.4  # goal coefficient (0.5)
+    k_obs = 2.5  # obstacle coefficient (1.5)
     k_b = 1.6  # damping coefficient
 
     for i, ego in enumerate(egos):
@@ -336,7 +336,6 @@ def guide_policy_formation_rvo(world):
         U[i] = u_i.reshape(2, 1)
 
     return U
-
 
 def guide_policy_encirclement_rvo(world):
     egos = world.egos

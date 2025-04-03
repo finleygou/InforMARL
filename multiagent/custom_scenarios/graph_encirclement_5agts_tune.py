@@ -129,7 +129,7 @@ class Scenario(BaseScenario):
         world.num_agent_collisions = np.zeros(self.num_egos)
 
         init_pos_ego = np.array([[-1.2, 0.], [-0.6, 0.0], [0.0, 0.0], [0.6, 0.0], [1.2, 0.0]])
-        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
+        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.001
         for i, ego in enumerate(world.egos):
             ego.done = False
             ego.state.p_pos = init_pos_ego[i]
@@ -314,7 +314,7 @@ class Scenario(BaseScenario):
 
         r_ca = 0
         penalty = self.penalty
-        # penalty = 10
+        # penalty = 15  # 蒙特卡洛时解注释
         collision_flag = False
         for ego in egos:
             if ego == agent: continue

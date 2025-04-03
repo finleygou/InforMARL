@@ -278,7 +278,7 @@ def get_config():
     parser.add_argument("--ifi", type=float, default=0.1, help="the play interval of each rendered image in saved video.")
     parser.add_argument("--render_eval", action="store_true", default=False, help="by default, do not render while evaluating. If set, render video.")
     parser.add_argument("--save_data", type=lambda x: bool(strtobool(x)), default=False, help='use to save data in rendering')
-    parser.add_argument("--monte_carlo_test", type=bool, default=False, help='if true, no image will be shown during render')
+    parser.add_argument("--monte_carlo_test", type=lambda x: bool(strtobool(x)), default=False, help='if true, no image will be shown during render')
    
     # pretrained parameters
     parser.add_argument("--model_dir", type=str, default=None, help="by default None. set the path to pretrained model.")

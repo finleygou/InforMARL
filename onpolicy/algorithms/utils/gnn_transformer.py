@@ -71,7 +71,7 @@ class EmbedConv(MessagePassing):
         # def init_(m):
         # 	return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
 
-        self.entity_embed = nn.Embedding(num_embeddings, embedding_size)
+        self.entity_embed = nn.Embedding(num_embeddings, embedding_size)  # num entities, embedding size
         # self.lin1 = nn.Sequential(
         # 				init_(nn.Linear(input_dim + embedding_size + edge_dim, 
         # 								hidden_size)),

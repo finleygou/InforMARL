@@ -43,5 +43,5 @@ do
     --use_att_gnn "False" \
     --monte_carlo_test "False" \
     --render_episodes 1 \
-    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_navigation_3agts/rmappo/check/wandb/run-20241012_130605-sgf7yy9n/files/"
+    --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_navigation_3agts/rmappo/check/wandb/run-20250307_155622-8rfg9x43/files/"
 done

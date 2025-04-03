@@ -1,4 +1,5 @@
 """
+this is a particularly difficult scenario to train
 3 egos
 4 obstacles
 4 dynamic obstacles

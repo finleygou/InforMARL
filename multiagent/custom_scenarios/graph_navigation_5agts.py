@@ -233,7 +233,7 @@ class Scenario(BaseScenario):
         dynamic_obstacles = world.dynamic_obstacles
       
         r_ca = 0
-        penalty = 20
+        penalty = 10
         collision_flag = False
         for ego in egos:
             if ego == agent: pass

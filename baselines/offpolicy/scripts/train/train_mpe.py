@@ -6,7 +6,10 @@ sys.path.append(os.path.abspath(os.getcwd()))
 import numpy as np
 from pathlib import Path
 import socket
-import wandb
+try:
+    import wandb
+except ImportError:
+    wandb = None
 import setproctitle
 import torch
 
@@ -242,8 +245,13 @@ def main(args):
         }
 
         if all_args.algorithm_name == "gcm":
-            policy_info["policy_0"]["node_obs_space"] = env.envs[0].node_observation_space[0]
-            policy_info["policy_0"]["edge_obs_space"] = env.envs[0].edge_observation_space[0]
+            if hasattr(env, "get_graph_spaces"):
+                node_obs_space, edge_obs_space = env.get_graph_spaces()
+                policy_info["policy_0"]["node_obs_space"] = node_obs_space[0]
+                policy_info["policy_0"]["edge_obs_space"] = edge_obs_space[0]
+            elif hasattr(env, "envs"):
+                policy_info["policy_0"]["node_obs_space"] = env.envs[0].node_observation_space[0]
+                policy_info["policy_0"]["edge_obs_space"] = env.envs[0].edge_observation_space[0]
 
         def policy_mapping_fn(id):
             return "policy_0"
@@ -317,7 +325,7 @@ def main(args):
     if all_args.use_wandb:
         run.finish()
     else:
-        runner.writter.export_scalars_to_json(str(runner.log_dir + "/summary.json"))
+        # runner.writter.export_scalars_to_json(str(runner.log_dir + "/summary.json"))
         runner.writter.close()
 
 

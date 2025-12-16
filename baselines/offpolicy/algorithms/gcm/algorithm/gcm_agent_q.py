@@ -50,8 +50,20 @@ class GCMAgentQ(nn.Module):
         agent_id = to_torch(agent_id).to(**self.tpdv)
         rnn_states = to_torch(rnn_states).to(**self.tpdv)
 
+        # Handle sequence dimension for GNN
+        is_sequence = False
+        if len(node_obs.shape) == 4:
+            is_sequence = True
+            T, B, Nodes, Feats = node_obs.shape
+            node_obs = node_obs.view(T * B, Nodes, Feats)
+            adj = adj.view(T * B, Nodes, Nodes)
+            agent_id = agent_id.view(T * B, -1)
+
         # GNN Forward
         gnn_out = self.gnn_base(node_obs, adj, agent_id)
+        
+        if is_sequence:
+            gnn_out = gnn_out.view(T, B, -1)
         
         # Concatenate GNN output with original observation
         inp = torch.cat([obs, gnn_out], dim=-1)

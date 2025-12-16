@@ -152,6 +152,10 @@ class GCMRunner(MPERunner):
             for policy_id in self.policies.keys()
         }
 
+        self.saver = self.save_q
+        self.restorer = self.restore_q
+        self.train = self.batch_train_q
+
         # Buffer
         self.buffer = GraphRecReplayBuffer(
             self.policy_info,
@@ -252,8 +256,8 @@ class GCMRunner(MPERunner):
             episode_share_obs[p_id][t] = share_obs
             episode_acts[p_id][t] = np.stack(env_acts)
             episode_rewards[p_id][t] = rewards
-            episode_dones[p_id][t] = dones
-            episode_dones_env[p_id][t] = dones_env
+            episode_dones[p_id][t] = dones[:, :, np.newaxis]
+            episode_dones_env[p_id][t] = dones_env[:, np.newaxis]
             
             episode_node_obs[p_id][t] = node_obs
             episode_adj[p_id][t] = adj

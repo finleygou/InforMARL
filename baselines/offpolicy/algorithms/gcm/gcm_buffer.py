@@ -33,26 +33,11 @@ class GraphRecPolicyBuffer(RecPolicyBuffer):
         idx_range = super().insert(num_insert_episodes, obs, share_obs, acts, rewards, dones, dones_env, avail_acts)
         
         # Insert graph data
-        # We need to handle the indices correctly. super().insert updates self.current_i and self.filled_i
-        # But we need the indices *before* update or just use the returned range if we override carefully.
-        # Actually super().insert returns idx_range. But it also updates internal state.
-        # So we should probably copy the logic or call super and then fill using the returned range.
+        # The returned idx_range is a numpy array of indices
         
-        # The returned idx_range is (start, end)
-        start, end = idx_range
-        
-        step = 0 # We usually insert a whole episode or chunk. 
-        # Wait, RecPolicyBuffer.insert takes (num_insert_episodes, ...) and inserts at current_i.
-        # The input arrays are expected to be (episode_length, num_insert_episodes, ...)
-        
-        # We need to match the slicing.
-        # The super insert does:
-        # self.obs[:, self.current_i : self.current_i + num_insert_episodes] = obs
-        
-        # So we do the same:
-        self.node_obs[:, start:end] = node_obs
-        self.adj[:, start:end] = adj
-        self.agent_id[:, start:end] = agent_id
+        self.node_obs[:, idx_range] = node_obs
+        self.adj[:, idx_range] = adj
+        self.agent_id[:, idx_range] = agent_id
         
         return idx_range
 
@@ -121,4 +106,4 @@ class GraphRecReplayBuffer(RecReplayBuffer):
                 agent_id[p_id],
             ) = self.policy_buffers[p_id].sample_inds(inds)
 
-        return obs, share_obs, acts, rewards, dones, dones_env, avail_acts, node_obs, adj, agent_id
+        return obs, share_obs, acts, rewards, dones, dones_env, avail_acts, node_obs, adj, agent_id, None, None

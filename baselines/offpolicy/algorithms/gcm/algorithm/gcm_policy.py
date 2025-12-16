@@ -9,6 +9,8 @@ from baselines.offpolicy.utils.util import (
     DecayThenFlatSchedule,
     to_torch,
     avail_choose,
+    to_numpy,
+    make_onehot,
 )
 from torch.distributions import OneHotCategorical
 
@@ -78,8 +80,32 @@ class GCMPolicy(RecurrentPolicy):
         q_values, new_rnn_states = self.q_network(input_batch, rnn_states, node_obs, adj, agent_id)
         
         if self.multidiscrete:
-            # Handle multidiscrete actions (omitted for brevity, similar to QMixPolicy)
-            pass
+            # Handle multidiscrete actions
+            onehot_actions = []
+            for i in range(len(self.act_dim)):
+                greedy_Q, greedy_action = q_values[i].max(dim=-1)
+
+                if explore:
+                    eps = self.exploration.eval(t_env)
+                    rand_number = np.random.rand(obs.shape[0])
+                    # random actions sample uniformly from action space
+                    random_action = (
+                        OneHotCategorical(logits=torch.ones(obs.shape[0], self.act_dim[i]))
+                        .sample()
+                        .numpy()
+                        .argmax(axis=-1)
+                    )
+                    take_random = (rand_number < eps).astype(int)
+                    action = (1 - take_random) * to_numpy(
+                        greedy_action
+                    ) + take_random * random_action
+                    onehot_action = make_onehot(action, self.act_dim[i])
+                else:
+                    onehot_action = make_onehot(greedy_action, self.act_dim[i])
+
+                onehot_actions.append(onehot_action)
+
+            actions = np.concatenate(onehot_actions, axis=-1)
         else:
             if available_actions is not None:
                 available_actions = to_torch(available_actions).to(self.device)
@@ -155,3 +181,92 @@ class GCMPolicy(RecurrentPolicy):
     def load_state(self, source_policy):
         """See parent class."""
         self.q_network.load_state_dict(source_policy.q_network.state_dict())
+
+    def actions_from_q(self, q_values, available_actions=None, explore=False, t_env=None):
+        """
+        Computes actions to take given q values.
+        :param q_values: (torch.Tensor) agent observations from which to compute q values
+        :param available_actions: (np.ndarray) actions available to take (None if all actions available)
+        :param explore: (bool) whether to use eps-greedy exploration
+        :param t_env: (int) env step at which this function was called; used to compute eps for eps-greedy
+        :return onehot_actions: (np.ndarray) actions to take (onehot)
+        :return greedy_Qs: (torch.Tensor) q values corresponding to greedy actions.
+        """
+        if self.multidiscrete:
+            no_sequence = len(q_values[0].shape) == 2
+            batch_size = q_values[0].shape[0] if no_sequence else q_values[0].shape[1]
+            seq_len = None if no_sequence else q_values[0].shape[0]
+        else:
+            no_sequence = len(q_values.shape) == 2
+            batch_size = q_values.shape[0] if no_sequence else q_values.shape[1]
+            seq_len = None if no_sequence else q_values.shape[0]
+
+        # mask the available actions by giving -inf q values to unavailable actions
+        if available_actions is not None:
+            q_values = q_values.clone()
+            q_values = avail_choose(q_values, available_actions)
+        else:
+            q_values = q_values
+
+        if self.multidiscrete:
+            onehot_actions = []
+            greedy_Qs = []
+            for i in range(len(self.act_dim)):
+                greedy_Q, greedy_action = q_values[i].max(dim=-1)
+
+                if explore:
+                    assert no_sequence, "Can only explore on non-sequences"
+                    eps = self.exploration.eval(t_env)
+                    rand_number = np.random.rand(batch_size)
+                    # random actions sample uniformly from action space
+                    random_action = (
+                        OneHotCategorical(logits=torch.ones(batch_size, self.act_dim[i]))
+                        .sample()
+                        .numpy()
+                        .argmax(axis=-1)
+                    )
+                    take_random = (rand_number < eps).astype(int)
+                    action = (1 - take_random) * to_numpy(
+                        greedy_action
+                    ) + take_random * random_action
+                    onehot_action = make_onehot(action, self.act_dim[i])
+                else:
+                    greedy_Q = greedy_Q.unsqueeze(-1)
+                    if no_sequence:
+                        onehot_action = make_onehot(greedy_action, self.act_dim[i])
+                    else:
+                        onehot_action = make_onehot(
+                            greedy_action, self.act_dim[i], seq_len=seq_len
+                        )
+
+                onehot_actions.append(onehot_action)
+                greedy_Qs.append(greedy_Q)
+
+            onehot_actions = np.concatenate(onehot_actions, axis=-1)
+            greedy_Qs = torch.cat(greedy_Qs, dim=-1)
+        else:
+            greedy_Qs, greedy_actions = q_values.max(dim=-1)
+            if explore:
+                assert no_sequence, "Can only explore on non-sequences"
+                eps = self.exploration.eval(t_env)
+                rand_numbers = np.random.rand(batch_size)
+                # random actions sample uniformly from action space
+                logits = avail_choose(
+                    torch.ones(batch_size, self.act_dim), available_actions
+                )
+                random_actions = OneHotCategorical(logits=logits).sample().numpy().argmax(axis=-1)
+                take_random = (rand_numbers < eps).astype(int)
+                actions = (1 - take_random) * to_numpy(
+                    greedy_actions
+                ) + take_random * random_actions
+                onehot_actions = make_onehot(actions, self.act_dim)
+            else:
+                greedy_Qs = greedy_Qs.unsqueeze(-1)
+                if no_sequence:
+                    onehot_actions = make_onehot(greedy_actions, self.act_dim)
+                else:
+                    onehot_actions = make_onehot(
+                        greedy_actions, self.act_dim, seq_len=seq_len
+                    )
+
+        return onehot_actions, greedy_Qs

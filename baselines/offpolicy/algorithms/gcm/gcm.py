@@ -97,62 +97,210 @@ class GCM(Trainer):
         params += list(self.mixer.parameters())
         return params
 
-    def train_policy_on_batch(self, sample, update_priorities=False):
-        obs_batch, share_obs_batch, actions_batch, available_actions_batch, \
-        reward_batch, done_batch, active_masks_batch, importance_weights, \
-        idxes, rnn_states_batch, rnn_states_critic_batch, \
-        node_obs_batch, adj_batch, agent_id_batch = sample
+    def train_policy_on_batch(self, batch, update_policy_id=None):
+        """See parent class."""
+        # unpack the batch
+        (
+            obs_batch,
+            cent_obs_batch,
+            act_batch,
+            rew_batch,
+            dones_batch,
+            dones_env_batch,
+            avail_act_batch,
+            node_obs_batch,
+            adj_batch,
+            agent_id_batch,
+            importance_weights,
+            idxes,
+        ) = batch
 
-        # Convert to torch
-        obs_batch = to_torch(obs_batch).to(**self.tpdv)
-        share_obs_batch = to_torch(share_obs_batch).to(**self.tpdv)
-        actions_batch = to_torch(actions_batch).to(**self.tpdv)
-        if available_actions_batch is not None:
-            available_actions_batch = to_torch(available_actions_batch).to(**self.tpdv)
-        reward_batch = to_torch(reward_batch).to(**self.tpdv)
-        done_batch = to_torch(done_batch).to(**self.tpdv)
-        active_masks_batch = to_torch(active_masks_batch).to(**self.tpdv)
-        if importance_weights is not None:
+        if self.use_same_share_obs:
+            cent_obs_batch = to_torch(cent_obs_batch[self.policy_ids[0]])
+        else:
+            choose_agent_id = 0
+            cent_obs_batch = to_torch(
+                cent_obs_batch[self.policy_ids[0]][choose_agent_id]
+            )
+
+        dones_env_batch = to_torch(dones_env_batch[self.policy_ids[0]]).to(**self.tpdv)
+
+        # individual agent q value sequences: each element is of shape (ep_len, batch_size, 1)
+        agent_q_seq = []
+        # individual agent next step q value sequences
+        agent_nq_seq = []
+        batch_size = None
+
+        for p_id in self.policy_ids:
+            policy = self.policies[p_id]
+            target_policy = self.target_policies[p_id]
+            # get data related to the policy id
+            pol_obs_batch = to_torch(obs_batch[p_id])
+            curr_act_batch = to_torch(act_batch[p_id]).to(**self.tpdv)
+
+            # stack over policy's agents to process them at once
+            stacked_act_batch = torch.cat(list(curr_act_batch), dim=-2)
+            stacked_obs_batch = torch.cat(list(pol_obs_batch), dim=-2)
+
+            # Graph data (Not casted, shape (T, B, N, ...))
+            pol_node_obs_batch = to_torch(node_obs_batch[p_id]).to(**self.tpdv)
+            pol_adj_batch = to_torch(adj_batch[p_id]).to(**self.tpdv)
+            pol_agent_id_batch = to_torch(agent_id_batch[p_id]).to(**self.tpdv)
+            
+            # Reshape graph data to (T, N*B, ...)
+            # node_obs: (T, B, N, Nodes, Feats) -> (T, N*B, Nodes, Feats)
+            T, B, N, Nodes, Feats = pol_node_obs_batch.shape
+            stacked_node_obs_batch = pol_node_obs_batch.permute(0, 2, 1, 3, 4).reshape(T, N*B, Nodes, Feats)
+            
+            # adj: (T, B, N, Nodes, Nodes) -> (T, N*B, Nodes, Nodes)
+            stacked_adj_batch = pol_adj_batch.permute(0, 2, 1, 3, 4).reshape(T, N*B, Nodes, Nodes)
+            
+            # agent_id: (T, B, N, 1) -> (T, N*B, 1)
+            stacked_agent_id_batch = pol_agent_id_batch.permute(0, 2, 1, 3).reshape(T, N*B, 1)
+
+            if avail_act_batch[p_id] is not None:
+                curr_avail_act_batch = to_torch(avail_act_batch[p_id])
+                stacked_avail_act_batch = torch.cat(list(curr_avail_act_batch), dim=-2)
+            else:
+                stacked_avail_act_batch = None
+
+            # [num_agents, episode_length, episodes, dim]
+            batch_size = pol_obs_batch.shape[2]
+            total_batch_size = batch_size * len(self.policy_agents[p_id])
+
+            sum_act_dim = (
+                int(sum(policy.act_dim)) if policy.multidiscrete else policy.act_dim
+            )
+
+            pol_prev_act_buffer_seq = torch.cat(
+                (
+                    torch.zeros(1, total_batch_size, sum_act_dim).to(**self.tpdv),
+                    stacked_act_batch,
+                )
+            )
+
+            # sequence of q values for all possible actions
+            pol_all_q_seq, _ = policy.get_q_values(
+                stacked_obs_batch,
+                stacked_node_obs_batch,
+                stacked_adj_batch,
+                stacked_agent_id_batch,
+                pol_prev_act_buffer_seq,
+                policy.init_hidden(-1, total_batch_size),
+            )
+            # get only the q values corresponding to actions taken in
+            # action_batch. Ignore the last time dimension.
+            if policy.multidiscrete:
+                pol_all_q_curr_seq = [q_seq[:-1] for q_seq in pol_all_q_seq]
+                pol_q_seq = policy.q_values_from_actions(
+                    pol_all_q_curr_seq, stacked_act_batch
+                )
+            else:
+                pol_q_seq = policy.q_values_from_actions(
+                    pol_all_q_seq[:-1], stacked_act_batch
+                )
+            agent_q_out_sequence = pol_q_seq.split(split_size=batch_size, dim=-2)
+            agent_q_seq.append(torch.cat(agent_q_out_sequence, dim=-1))
+
+            with torch.no_grad():
+                if self.args.use_double_q:
+                    # choose greedy actions from live, but get corresponding q values from target
+                    greedy_actions, _ = policy.actions_from_q(
+                        pol_all_q_seq, available_actions=stacked_avail_act_batch
+                    )
+                    target_q_seq, _ = target_policy.get_q_values(
+                        stacked_obs_batch,
+                        stacked_node_obs_batch,
+                        stacked_adj_batch,
+                        stacked_agent_id_batch,
+                        pol_prev_act_buffer_seq,
+                        target_policy.init_hidden(-1, total_batch_size),
+                        action_batch=greedy_actions,
+                    )
+                else:
+                    _, _, target_q_seq = target_policy.get_actions(
+                        stacked_obs_batch,
+                        stacked_node_obs_batch,
+                        stacked_adj_batch,
+                        stacked_agent_id_batch,
+                        pol_prev_act_buffer_seq,
+                        target_policy.init_hidden(-1, total_batch_size),
+                    )
+            # don't need the first Q values for next step
+            target_q_seq = target_q_seq[1:]
+            agent_nq_sequence = target_q_seq.split(split_size=batch_size, dim=-2)
+            agent_nq_seq.append(torch.cat(agent_nq_sequence, dim=-1))
+
+        # combine agent q value sequences to feed into mixer networks
+        agent_q_seq = torch.cat(agent_q_seq, dim=-1)
+        agent_nq_seq = torch.cat(agent_nq_seq, dim=-1)
+
+        # get curr step and next step Q_tot values using mixer
+        Q_tot_seq = self.mixer(agent_q_seq, cent_obs_batch[:-1]).squeeze(-1)
+        next_step_Q_tot_seq = self.target_mixer(
+            agent_nq_seq, cent_obs_batch[1:]
+        ).squeeze(-1)
+
+        # agents share reward
+        rewards = to_torch(rew_batch[self.policy_ids[0]][0]).to(**self.tpdv)
+        # form bad transition mask
+        bad_transitions_mask = torch.cat(
+            (
+                torch.zeros(1, batch_size, 1).to(**self.tpdv),
+                dones_env_batch[: self.episode_length - 1, :, :],
+            )
+        )
+
+        # bootstrapped targets
+        Q_tot_target_seq = (
+            rewards + (1 - dones_env_batch) * self.args.gamma * next_step_Q_tot_seq
+        )
+        # Bellman error and mask out invalid transitions
+        error = (Q_tot_seq - Q_tot_target_seq.detach()) * (1 - bad_transitions_mask)
+
+        if self.use_per:
+            # Form updated priorities for prioritized experience replay using the Bellman error
             importance_weights = to_torch(importance_weights).to(**self.tpdv)
-        rnn_states_batch = to_torch(rnn_states_batch).to(**self.tpdv)
-        if rnn_states_critic_batch is not None:
-            rnn_states_critic_batch = to_torch(rnn_states_critic_batch).to(**self.tpdv)
-        
-        node_obs_batch = to_torch(node_obs_batch).to(**self.tpdv)
-        adj_batch = to_torch(adj_batch).to(**self.tpdv)
-        agent_id_batch = to_torch(agent_id_batch).to(**self.tpdv)
+            if self.use_huber_loss:
+                per_batch_error = (
+                    huber_loss(error, self.huber_delta).sum(dim=0).flatten()
+                )
+            else:
+                per_batch_error = mse_loss(error).sum(dim=0).flatten()
+            importance_weight_error = per_batch_error * importance_weights
+            loss = importance_weight_error.sum() / (1 - bad_transitions_mask).sum()
 
-        # Train loop
-        # ... (Simplified for brevity, assuming single policy for now or iterating)
-        
-        # For QMix, we usually have one policy shared or multiple.
-        # Assuming shared policy "policy_0" for simplicity as per QMix implementation
-        
-        p_id = "policy_0"
-        policy = self.policies[p_id]
-        target_policy = self.target_policies[p_id]
-        
-        # Get Q values
-        q_values, _ = policy.get_q_values(obs_batch, node_obs_batch, adj_batch, agent_id_batch, actions_batch, rnn_states_batch)
-        
-        # Get Target Q values
-        with torch.no_grad():
-            target_q_values, _ = target_policy.get_q_values(obs_batch, node_obs_batch, adj_batch, agent_id_batch, actions_batch, rnn_states_batch)
-            # ... (Target calculation logic similar to QMix)
-            # Max over actions for target
-            # We need next state for target. The sample should contain next state.
-            # Actually RecReplayBuffer returns entire episode.
-            # We need to slice for current and next step.
-            
-            # The sample is (episode_length + 1, batch_size, ...)
-            # We use 0..T-1 for current, 1..T for next.
-            
-            # ... (Implementation details omitted for brevity, but logic is standard QMix)
-            
-        # Calculate loss
-        # ...
-        
-        return None, None # Return logs
+            # new priorities are a combination of the maximum TD error
+            # across sequence and the mean TD error across sequence (see R2D2 paper)
+            td_errors = error.abs().cpu().detach().numpy()
+            new_priorities = (
+                (1 - self.args.per_nu) * td_errors.mean(axis=0)
+                + self.args.per_nu * td_errors.max(axis=0)
+            ).flatten() + self.per_eps
+        else:
+            if self.use_huber_loss:
+                loss = (
+                    huber_loss(error, self.huber_delta).sum()
+                    / (1 - bad_transitions_mask).sum()
+                )
+            else:
+                loss = mse_loss(error).sum() / (1 - bad_transitions_mask).sum()
+            new_priorities = None
+
+        # backward pass and gradient step
+        self.optimizer.zero_grad()
+        loss.backward()
+        grad_norm = torch.nn.utils.clip_grad_norm_(
+            self.collect_params(self.policies), self.args.max_grad_norm
+        )
+        self.optimizer.step()
+        # log
+        train_info = {}
+        train_info["loss"] = loss
+        train_info["grad_norm"] = grad_norm
+        train_info["Q_tot"] = (Q_tot_seq * (1 - bad_transitions_mask)).mean()
+
+        return train_info, new_priorities, idxes
 
     def prep_training(self):
         for policy in self.policies.values():
@@ -165,3 +313,19 @@ class GCM(Trainer):
             policy.q_network.eval()
         self.mixer.eval()
         self.target_mixer.eval()
+
+    def hard_target_updates(self):
+        """Hard update the target networks."""
+        for policy_id in self.policy_ids:
+            self.target_policies[policy_id].load_state(self.policies[policy_id])
+        if self.mixer is not None:
+            self.target_mixer.load_state_dict(self.mixer.state_dict())
+
+    def soft_target_updates(self):
+        """Soft update the target networks."""
+        for policy_id in self.policy_ids:
+            soft_update(
+                self.target_policies[policy_id], self.policies[policy_id], self.tau
+            )
+        if self.mixer is not None:
+            soft_update(self.target_mixer, self.mixer, self.tau)

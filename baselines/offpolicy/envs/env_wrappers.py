@@ -149,14 +149,27 @@ def worker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == "step":
-            ob, reward, done, info = env.step(data)
-            if "bool" in done.__class__.__name__:
-                if done:
-                    ob = env.reset()
+            results = env.step(data)
+            if len(results) == 4:
+                ob, reward, done, info = results
+                if "bool" in done.__class__.__name__:
+                    if done:
+                        ob = env.reset()
+                else:
+                    if np.all(done):
+                        ob = env.reset()
+                remote.send((ob, reward, done, info))
+            elif len(results) == 7:
+                ob, agent_id, node_obs, adj, reward, done, info = results
+                if "bool" in done.__class__.__name__:
+                    if done:
+                        ob, agent_id, node_obs, adj = env.reset()
+                else:
+                    if np.all(done):
+                        ob, agent_id, node_obs, adj = env.reset()
+                remote.send((ob, agent_id, node_obs, adj, reward, done, info))
             else:
-                if np.all(done):
-                    ob = env.reset()
-            remote.send((ob, reward, done, info))
+                raise ValueError(f"Unexpected number of return values from env.step: {len(results)}")
         elif cmd == "reset":
             ob = env.reset()
             remote.send((ob))
@@ -173,6 +186,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
             )
         elif cmd == "get_num_agents":
             remote.send((env.num_agents))
+        elif cmd == "get_graph_spaces":
+            remote.send((env.node_observation_space, env.edge_observation_space))
         else:
             raise NotImplementedError
 
@@ -219,14 +234,32 @@ class SubprocVecEnv(ShareVecEnv):
     def step_wait(self):
         results = [remote.recv() for remote in self.remotes]
         self.waiting = False
-        obs, rews, dones, infos = zip(*results)
-        return np.stack(obs), np.stack(rews), np.stack(dones), infos
+        
+        first_result = results[0]
+        if len(first_result) == 4:
+            obs, rews, dones, infos = zip(*results)
+            return np.stack(obs), np.stack(rews), np.stack(dones), infos
+        elif len(first_result) == 7:
+            obs, agent_id, node_obs, adj, rews, dones, infos = zip(*results)
+            return np.stack(obs), np.stack(agent_id), np.stack(node_obs), np.stack(adj), np.stack(rews), np.stack(dones), infos
+        else:
+            raise ValueError(f"Unexpected number of return values from env.step: {len(first_result)}")
 
     def reset(self):
         for remote in self.remotes:
             remote.send(("reset", None))
-        obs = [remote.recv() for remote in self.remotes]
-        return np.stack(obs)
+        results = [remote.recv() for remote in self.remotes]
+        
+        first_result = results[0]
+        if isinstance(first_result, tuple) and len(first_result) == 4:
+             obs, agent_id, node_obs, adj = zip(*results)
+             return np.stack(obs), np.stack(agent_id), np.stack(node_obs), np.stack(adj)
+        else:
+             return np.stack(results)
+
+    def get_graph_spaces(self):
+        self.remotes[0].send(("get_graph_spaces", None))
+        return self.remotes[0].recv()
 
     def reset_task(self):
         for remote in self.remotes:
@@ -485,22 +518,31 @@ class DummyVecEnv(ShareVecEnv):
 
     def step_wait(self):
         results = [env.step(a) for (a, env) in zip(self.actions, self.envs)]
-        obs, rews, dones, infos = map(np.array, zip(*results))
-
-        # for (i, done) in enumerate(dones):
-        #     if 'bool' in done.__class__.__name__:
-        #         if done:
-        #             obs[i] = self.envs[i].reset()
-        #     else:
-        #         if np.all(done):
-        #             obs[i] = self.envs[i].reset()
-
-        self.actions = None
-        return obs, rews, dones, infos
+        
+        first_result = results[0]
+        if len(first_result) == 4:
+             obs, rews, dones, infos = map(np.array, zip(*results))
+             return obs, rews, dones, infos
+        elif len(first_result) == 7:
+             # GraphEnv: obs_n, agent_id_n, node_obs_n, adj_n, reward_n, done_n, info_n
+             obs, agent_id, node_obs, adj, rews, dones, infos = map(np.array, zip(*results))
+             return obs, agent_id, node_obs, adj, rews, dones, infos
+        else:
+             raise ValueError(f"Unexpected number of return values from env.step: {len(first_result)}")
 
     def reset(self):
-        obs = [env.reset() for env in self.envs]
-        return np.array(obs)
+        results = [env.reset() for env in self.envs]
+        # Check if results are tuples (like in GraphMPEEnv)
+        if isinstance(results[0], tuple):
+            # Transpose the list of tuples to a tuple of lists
+            transposed = zip(*results)
+            # Convert each list to a numpy array
+            return tuple(np.array(x) for x in transposed)
+        else:
+            return np.array(results)
+
+    def get_graph_spaces(self):
+        return self.envs[0].node_observation_space, self.envs[0].edge_observation_space
 
     def close(self):
         for env in self.envs:

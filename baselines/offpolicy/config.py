@@ -454,7 +454,7 @@ def get_config():
     parser.add_argument(
         "--save_interval",
         type=int,
-        default=100000,
+        default=1000,
         help="After how many episodes of training the policy model should be saved",
     )
 

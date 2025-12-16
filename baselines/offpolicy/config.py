@@ -592,5 +592,7 @@ def get_config():
 
     parser.add_argument("--save_data", type=lambda x: bool(strtobool(x)), default=False, help='use to save data in rendering')
     parser.add_argument("--monte_carlo_test", type=lambda x: bool(strtobool(x)), default=False, help='if true, no image will be shown during render')
+    parser.add_argument("--save_gifs", type=lambda x: bool(strtobool(x)), default=False, help="by default, do not save render video. If set, save video.")
+    parser.add_argument("--use_render", type=lambda x: bool(strtobool(x)), default=False, help="by default, do not render the env during training. If set, start render. Note: something, the environment has internal render process which is not controlled by this hyperparam.")
 
     return parser

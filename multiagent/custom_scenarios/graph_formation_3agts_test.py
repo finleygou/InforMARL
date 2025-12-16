@@ -312,7 +312,7 @@ class Scenario(BaseScenario):
 
         # calculate dones
         dist_lft = np.linalg.norm(leader.state.p_pos - leader.goal)
-        r_ca += np.exp(-dist_lft)
+        r_ca += np.exp(-dist_lft)-1
 
         ego.done = True if dist_lft < 0.2 else False
 

@@ -110,7 +110,7 @@ class ShareVecEnv(ABC):
         return self.step_wait()
 
     def render(self, mode="human"):
-        from utils.util import tile_images
+        from baselines.offpolicy.utils.util import tile_images
 
         imgs = self.get_images()
         bigimg = tile_images(imgs)
@@ -540,6 +540,9 @@ class DummyVecEnv(ShareVecEnv):
             return tuple(np.array(x) for x in transposed)
         else:
             return np.array(results)
+
+    def get_images(self):
+        return [env.render("rgb_array") for env in self.envs]
 
     def get_graph_spaces(self):
         return self.envs[0].node_observation_space, self.envs[0].edge_observation_space

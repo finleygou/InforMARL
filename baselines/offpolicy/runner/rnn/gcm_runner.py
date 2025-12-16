@@ -8,6 +8,7 @@ from baselines.offpolicy.runner.rnn.mpe_runner import MPERunner
 from baselines.offpolicy.algorithms.gcm.algorithm.gcm_policy import GCMPolicy
 from baselines.offpolicy.algorithms.gcm.gcm import GCM
 from baselines.offpolicy.algorithms.gcm.gcm_buffer import GraphRecReplayBuffer
+import csv
 
 class GCMRunner(MPERunner):
     def __init__(self, config):
@@ -19,6 +20,9 @@ class GCMRunner(MPERunner):
         self.args = config["args"]
         self.device = config["device"]
         self.q_learning = ["qmix", "vdn", "gcm"] # Added gcm
+
+        self.save_data = self.args.save_data
+        self.reward_file_name = self.args.reward_file_name
 
         self.share_policy = self.args.share_policy
         self.algorithm_name = self.args.algorithm_name
@@ -183,13 +187,22 @@ class GCMRunner(MPERunner):
 
     @torch.no_grad()
     def shared_collect_rollout(self, explore=True, training_episode=True, warmup=False):
+        
+        if self.save_data:
+            #csv
+            print('save training data')
+            file = open(self.reward_file_name+'.csv', 'w', encoding='utf-8', newline="")
+            writer = csv.writer(file)
+            writer.writerow(['step', 'average', 'min', 'max', 'std'])
+            file.close()
+        
         env_info = {}
         p_id = "policy_0"
         policy = self.policies[p_id]
 
         env = self.env if training_episode or warmup else self.eval_env
 
-        # Reset returns 4 values for GraphEnv
+        # Reset returns 4 va blues for GraphEnv
         obs, agent_id, node_obs, adj = env.reset()
 
         rnn_states_batch = np.zeros(

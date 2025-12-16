@@ -21,12 +21,14 @@ CUDA_VISIBLE_DEVICES='0' python ../baselines/offpolicy/scripts/train/train_mpe.p
 --num_target 0 --num_agents 3 --num_obstacle 4 --num_dynamic_obs 4 \
 --use_wandb "False" \
 --use_policy "False" \
+--save_data "True" \
+--reward_file_name "reward_3agts" \
 --use_curriculum "False" \
 --n_training_threads 16 --n_rollout_threads 1 \
 --episode_length ${ep_lens} \
---num_env_steps 10000 \
+--num_env_steps 500000 \
 --batch_size 32 \
---lr 5e-4 \
+--lr 2e-4 \
 --user_name "finleygou" \
 --use_cent_obs False \
 --graph_feat_type "relative" \

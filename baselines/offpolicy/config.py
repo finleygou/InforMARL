@@ -595,5 +595,7 @@ def get_config():
     parser.add_argument("--save_gifs", type=lambda x: bool(strtobool(x)), default=False, help="by default, do not save render video. If set, save video.")
     parser.add_argument("--use_render", type=lambda x: bool(strtobool(x)), default=False, help="by default, do not render the env during training. If set, start render. Note: something, the environment has internal render process which is not controlled by this hyperparam.")
     parser.add_argument("--render_episodes", type=int, default=5, help="the number of episodes to render a given env")
+    parser.add_argument("--reward_file_name", type=str, default=None, help="csv name of training reward.")
+    parser.add_argument("--MC_file_name", type=str, default=None, help="csv name of Monte Carlo test results.")
     
     return parser

@@ -23,6 +23,7 @@ def get_config():
             "masac",
             "mqmix",
             "mvdn",
+            "gcm"
         ],
     )  # masac not implemented;
     parser.add_argument(
@@ -66,13 +67,7 @@ def get_config():
         default=2000000,
         help="Number of env steps to train for",
     )
-    parser.add_argument(
-        "--use_wandb",
-        action="store_false",
-        default=True,
-        help="[for wandb usage], by default True, will log date "
-        "to wandb server. or else will use tensorboard to log data.",
-    )
+
     parser.add_argument(
         "--user_name",
         type=str,
@@ -414,6 +409,7 @@ def get_config():
     parser.add_argument("--act_noise_std", type=float, default=0.1, help="Action noise")
 
     # train parameters
+    parser.add_argument("--use_wandb", type=lambda x: bool(strtobool(x)), default=True, help="[for wandb usage], by default True, will log date to wandb server. or else will use tensorboard to log data.")
     parser.add_argument(
         "--actor_train_interval_step",
         type=int,
@@ -470,7 +466,40 @@ def get_config():
         help="After how many episodes of training the policy model should be saved",
     )
 
-    # pretained parameters
+    # scenario parameters
+    parser.add_argument("--cp", type=float, default=0.4, help="Curriculum parameter")
+    parser.add_argument(
+        "--use_curriculum",
+        action="store_true",
+        default=False,
+        help="Whether to use curriculum learning",
+    )
+    parser.add_argument(
+        "--num_target", type=int, default=0, help="Number of targets"
+    )
+    parser.add_argument(
+        "--num_obstacle", type=int, default=0, help="Number of obstacles"
+    )
+    parser.add_argument(
+        "--num_dynamic_obs", type=int, default=0, help="Number of dynamic obstacles"
+    )
+
+    # graph parameters
+    parser.add_argument(
+        "--graph_feat_type",
+        type=str,
+        default="global",
+        choices=["global", "relative"],
+        help="Type of graph features to use",
+    )
+    parser.add_argument(
+        "--use_att_gnn",
+        action="store_true",
+        default=False,
+        help="Whether to use attention GNN",
+    )
+
+    # pretrained parameters
     parser.add_argument(
         "--model_dir",
         type=str,

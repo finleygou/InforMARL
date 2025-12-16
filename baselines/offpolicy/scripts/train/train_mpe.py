@@ -13,7 +13,7 @@ import torch
 from utils.utils import print_args, print_box, connected_to_internet
 from baselines.offpolicy.config import get_config
 from baselines.offpolicy.utils.util import get_cent_act_dim, get_dim_from_space
-from multiagent.MPE_env import MPEEnv
+from multiagent.MPE_env import MPEEnv, GraphMPEEnv
 from baselines.offpolicy.envs.env_wrappers import DummyVecEnv, SubprocVecEnv
 
 
@@ -22,6 +22,8 @@ def make_train_env(all_args):
         def init_env():
             if all_args.env_name == "MPE":
                 env = MPEEnv(all_args)
+            elif all_args.env_name == "GraphMPE":
+                env = GraphMPEEnv(all_args)
             else:
                 print(f"Can not support the {all_args.env_name} environment.")
                 raise NotImplementedError
@@ -41,6 +43,8 @@ def make_eval_env(all_args):
         def init_env():
             if all_args.env_name == "MPE":
                 env = MPEEnv(all_args)
+            elif all_args.env_name == "GraphMPE":
+                env = GraphMPEEnv(all_args)
             else:
                 print(f"Can not support the {all_args.env_name} environment.")
                 raise NotImplementedError
@@ -270,6 +274,13 @@ def main(args):
         from baselines.offpolicy.runner.mlp.mpe_runner import MPERunner as Runner
 
         eval_env = make_eval_env(all_args)
+    elif all_args.algorithm_name == "gcm":
+        from baselines.offpolicy.runner.rnn.gcm_runner import GCMRunner as Runner
+
+        assert (
+            all_args.n_rollout_threads == 1
+        ), "only support 1 env in recurrent version."
+        eval_env = env
     else:
         raise NotImplementedError
 

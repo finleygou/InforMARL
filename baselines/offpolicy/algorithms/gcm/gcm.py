@@ -153,3 +153,15 @@ class GCM(Trainer):
         # ...
         
         return None, None # Return logs
+
+    def prep_training(self):
+        for policy in self.policies.values():
+            policy.q_network.train()
+        self.mixer.train()
+        self.target_mixer.train()
+
+    def prep_rollout(self):
+        for policy in self.policies.values():
+            policy.q_network.eval()
+        self.mixer.eval()
+        self.target_mixer.eval()

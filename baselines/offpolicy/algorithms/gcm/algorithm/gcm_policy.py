@@ -8,7 +8,9 @@ from baselines.offpolicy.utils.util import (
     is_multidiscrete,
     DecayThenFlatSchedule,
     to_torch,
+    avail_choose,
 )
+from torch.distributions import OneHotCategorical
 
 class GCMPolicy(RecurrentPolicy):
     def __init__(self, config, policy_config, train=True):
@@ -111,3 +113,45 @@ class GCMPolicy(RecurrentPolicy):
             return torch.cat(all_q_values, dim=-1)
         else:
             return torch.gather(q_batch, 2, action_batch.long())
+
+    def get_random_actions(self, obs, available_actions=None):
+        """See parent class."""
+        batch_size = obs.shape[0]
+
+        if self.multidiscrete:
+            random_actions = [
+                OneHotCategorical(logits=torch.ones(batch_size, self.act_dim[i]))
+                .sample()
+                .numpy()
+                for i in range(len(self.act_dim))
+            ]
+            random_actions = np.concatenate(random_actions, axis=-1)
+        else:
+            if available_actions is not None:
+                logits = avail_choose(
+                    torch.ones(batch_size, self.act_dim), available_actions
+                )
+                random_actions = OneHotCategorical(logits=logits).sample().numpy()
+            else:
+                random_actions = (
+                    OneHotCategorical(logits=torch.ones(batch_size, self.act_dim))
+                    .sample()
+                    .numpy()
+                )
+
+        return random_actions
+
+    def init_hidden(self, num_agents, batch_size):
+        """See parent class."""
+        if num_agents == -1:
+            return torch.zeros(batch_size, self.hidden_size)
+        else:
+            return torch.zeros(num_agents, batch_size, self.hidden_size)
+
+    def parameters(self):
+        """See parent class."""
+        return self.q_network.parameters()
+
+    def load_state(self, source_policy):
+        """See parent class."""
+        self.q_network.load_state_dict(source_policy.q_network.state_dict())

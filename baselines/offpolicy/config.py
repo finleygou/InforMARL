@@ -467,13 +467,6 @@ def get_config():
     )
 
     # scenario parameters
-    parser.add_argument("--cp", type=float, default=0.4, help="Curriculum parameter")
-    parser.add_argument(
-        "--use_curriculum",
-        action="store_true",
-        default=False,
-        help="Whether to use curriculum learning",
-    )
     parser.add_argument(
         "--num_target", type=int, default=0, help="Number of targets"
     )
@@ -498,6 +491,86 @@ def get_config():
         default=False,
         help="Whether to use attention GNN",
     )
+    parser.add_argument(
+        "--actor_graph_aggr",
+        type=str,
+        default="node",
+        choices=["node", "global"],
+        help="Graph aggregation method for actor",
+    )
+    parser.add_argument(
+        "--gnn_hidden_size",
+        type=int,
+        default=64,
+        help="Hidden size for GNN",
+    )
+    parser.add_argument(
+        "--gnn_num_heads",
+        type=int,
+        default=4,
+        help="Number of heads for GNN attention",
+    )
+    parser.add_argument(
+        "--gnn_concat_heads",
+        action="store_true",
+        default=False,
+        help="Whether to concatenate heads in GNN",
+    )
+    parser.add_argument(
+        "--num_embeddings",
+        type=int,
+        default=4,
+        help="Number of entity types for embedding",
+    )
+    parser.add_argument(
+        "--embedding_size",
+        type=int,
+        default=16,
+        help="Size of entity embeddings",
+    )
+    parser.add_argument(
+        "--gnn_layer_N",
+        type=int,
+        default=1,
+        help="Number of GNN layers",
+    )
+    parser.add_argument(
+        "--gnn_use_ReLU",
+        action="store_false",
+        default=True,
+        help="Whether to use ReLU in GNN",
+    )
+    parser.add_argument(
+        "--global_aggr_type",
+        type=str,
+        default="mean",
+        choices=["mean", "max", "add"],
+        help="Global aggregation type",
+    )
+    parser.add_argument(
+        "--embed_hidden_size",
+        type=int,
+        default=64,
+        help="Hidden size for embedding layers",
+    )
+    parser.add_argument(
+        "--embed_layer_N",
+        type=int,
+        default=1,
+        help="Number of embedding layers",
+    )
+    parser.add_argument(
+        "--embed_use_ReLU",
+        action="store_false",
+        default=True,
+        help="Whether to use ReLU in embedding layers",
+    )
+    parser.add_argument(
+        "--embed_add_self_loop",
+        action="store_false",
+        default=True,
+        help="Whether to add self loops in embedding layers",
+    )
 
     # pretrained parameters
     parser.add_argument(
@@ -506,5 +579,18 @@ def get_config():
         default=None,
         help="by default None. set the path to pretrained model.",
     )
+
+    parser.add_argument("--use_policy", type=lambda x: bool(strtobool(x)), default=False, help="use the fixed policy to conduct tasks")
+    parser.add_argument("--use_curriculum", type=lambda x: bool(strtobool(x)), default=False, help='use curriculum learning during training')
+    parser.add_argument("--guide_cp", type=float, default=0.6, help='the proportion of guide policy over the whole training')
+    parser.add_argument("--cp", type=float, default=0.6, help='cp used in simple scenarios')
+    parser.add_argument("--js_ratio", type=float, default=0.8, help='the threshold of the curriculum')
+    parser.add_argument("--gp_type", type=str,
+                        default='formation', choices=["formation", "encirclement", "navigation",
+                                                       "formation_rvo", "encirclement_rvo", "navigation_rvo"], 
+                                                       help="the choose of guide policy")
+
+    parser.add_argument("--save_data", type=lambda x: bool(strtobool(x)), default=False, help='use to save data in rendering')
+    parser.add_argument("--monte_carlo_test", type=lambda x: bool(strtobool(x)), default=False, help='if true, no image will be shown during render')
 
     return parser

@@ -241,6 +241,10 @@ def main(args):
             }
         }
 
+        if all_args.algorithm_name == "gcm":
+            policy_info["policy_0"]["node_obs_space"] = env.envs[0].node_observation_space[0]
+            policy_info["policy_0"]["edge_obs_space"] = env.envs[0].edge_observation_space[0]
+
         def policy_mapping_fn(id):
             return "policy_0"
 
@@ -258,6 +262,11 @@ def main(args):
             }
             for agent_id in range(num_agents)
         }
+
+        if all_args.algorithm_name == "gcm":
+            for agent_id in range(num_agents):
+                policy_info["policy_" + str(agent_id)]["node_obs_space"] = env.envs[0].node_observation_space[agent_id]
+                policy_info["policy_" + str(agent_id)]["edge_obs_space"] = env.envs[0].edge_observation_space[agent_id]
 
         def policy_mapping_fn(agent_id):
             return "policy_" + str(agent_id)

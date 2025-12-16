@@ -519,7 +519,7 @@ class GNNBase(nn.Module):
         # print("x", x)
         
         '''
-        # 手动生成node_obs, edge_index, edge_attr, 模拟单个智能体的数据或的情况
+        # 手动生成node_obs, edge_index, edge_attr, 模拟单个智能体的数据获得情况
         x = torch.tensor([[ 0.0000e+00,  0.0000e+00,  0.0000e+00,  0.0000e+00,  1.2000e-01,
           0.0000e+00],
         [ 6.8484e-01, -6.8739e-01, -1.5789e-02,  0.0000e+00,  1.2000e-01,

@@ -622,6 +622,12 @@ def chooseworker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset":
             ob, s_ob, available_actions = env.reset(data)
             remote.send((ob, s_ob, available_actions))
+        elif cmd == "render":
+            if data == "rgb_array":
+                fr = env.render(mode=data)
+                remote.send(fr)
+            elif data == "human":
+                env.render(mode=data)
         elif cmd == "reset_task":
             ob = env.reset_task()
             remote.send(ob)
@@ -716,6 +722,17 @@ class ChooseSubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    def render(self, mode="human"):
+        imgs = self.get_images()
+        bigimg = tile_images(imgs)
+        if mode == "human":
+            self.get_viewer().imshow(bigimg)
+            return self.get_viewer().isopen
+        elif mode == "rgb_array":
+            return bigimg
+        else:
+            raise NotImplementedError
+
 
 def chooseguardworker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
@@ -728,6 +745,12 @@ def chooseguardworker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset":
             ob = env.reset(data)
             remote.send((ob))
+        elif cmd == "render":
+            if data == "rgb_array":
+                fr = env.render(mode=data)
+                remote.send(fr)
+            elif data == "human":
+                env.render(mode=data)
         elif cmd == "reset_task":
             ob = env.reset_task()
             remote.send(ob)
@@ -810,6 +833,16 @@ class ChooseGuardSubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    def render(self, mode="human"):
+        imgs = self.get_images()
+        bigimg = tile_images(imgs)
+        if mode == "human":
+            self.get_viewer().imshow(bigimg)
+            return self.get_viewer().isopen
+        elif mode == "rgb_array":
+            return bigimg
+        else:
+            raise NotImplementedError
 
 # single env
 class DummyVecEnv(ShareVecEnv):

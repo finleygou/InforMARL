@@ -137,7 +137,7 @@ class ShareVecEnv(ABC):
 
     def get_viewer(self):
         if self.viewer is None:
-            from gym.envs.classic_control import rendering
+            from multiagent import rendering
 
             self.viewer = rendering.SimpleImageViewer()
         return self.viewer
@@ -173,6 +173,12 @@ def worker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset":
             ob = env.reset()
             remote.send((ob))
+        elif cmd == "render":
+            if data == "rgb_array":
+                fr = env.render(mode=data)
+                remote.send(fr)
+            elif data == "human":
+                env.render(mode=data)
         elif cmd == "reset_task":
             ob = env.reset_task()
             remote.send(ob)
@@ -278,6 +284,16 @@ class SubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    def render(self, mode="rgb_array"):
+        # for remote in self.remotes:
+        #     remote.send(('render', mode))
+        remote = self.remotes[0]  # 对于第一个进程的env使用render
+        remote.send(('render', mode))  # 进程通信，下发render指令
+        if mode == "rgb_array":   
+            # frame = [remote.recv() for remote in self.remotes]
+            # return np.stack(frame) 
+            frame = remote.recv()
+            return frame  # np.array 图像格式
 
 def shareworker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
@@ -296,6 +312,12 @@ def shareworker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset":
             ob, s_ob, available_actions = env.reset()
             remote.send((ob, s_ob, available_actions))
+        elif cmd == "render":
+            if data == "rgb_array":
+                fr = env.render(mode=data)
+                remote.send(fr)
+            elif data == "human":
+                env.render(mode=data)
         elif cmd == "reset_task":
             ob = env.reset_task()
             remote.send(ob)
@@ -390,6 +412,19 @@ class ShareSubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    def render(self, mode="human"):
+        from baselines.offpolicy.utils.util import tile_images
+
+        imgs = self.get_images()
+        bigimg = tile_images(imgs)
+        if mode == "human":
+            self.get_viewer().imshow(bigimg)
+            return self.get_viewer().isopen
+        elif mode == "rgb_array":
+            return bigimg
+        else:
+            raise NotImplementedError
+
 
 def chooseworker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
@@ -402,6 +437,12 @@ def chooseworker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset":
             ob, s_ob, available_actions = env.reset(data)
             remote.send((ob, s_ob, available_actions))
+        elif cmd == "render":
+            if data == "rgb_array":
+                fr = env.render(mode=data)
+                remote.send(fr)
+            elif data == "human":
+                env.render(mode=data)
         elif cmd == "reset_task":
             ob = env.reset_task()
             remote.send(ob)
@@ -496,6 +537,19 @@ class ChooseSubprocVecEnv(ShareVecEnv):
             p.join()
         self.closed = True
 
+    def render(self, mode="human"):
+        from baselines.offpolicy.utils.util import tile_images
+
+        imgs = self.get_images()
+        bigimg = tile_images(imgs)
+        if mode == "human":
+            self.get_viewer().imshow(bigimg)
+            return self.get_viewer().isopen
+        elif mode == "rgb_array":
+            return bigimg
+        else:
+            raise NotImplementedError
+
 
 # single env
 
@@ -541,8 +595,13 @@ class DummyVecEnv(ShareVecEnv):
         else:
             return np.array(results)
 
+    def render(self, mode="human"):
+        if self.num_envs == 1 and mode == "human":
+            return self.envs[0].render(mode)[0]
+        return super().render(mode)
+
     def get_images(self):
-        return [env.render("rgb_array") for env in self.envs]
+        return [img for env in self.envs for img in env.render("rgb_array")]
 
     def get_graph_spaces(self):
         return self.envs[0].node_observation_space, self.envs[0].edge_observation_space

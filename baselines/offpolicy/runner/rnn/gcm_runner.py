@@ -301,55 +301,58 @@ class GCMRunner(MPERunner):
     def render(self):
         env = self.env
         # Reset returns 4 values for GraphEnv
-        obs, agent_id, node_obs, adj = env.reset()
-        
-        if self.args.save_gifs:
-            import imageio
-            all_frames = []
-            image = env.render("rgb_array")[0][0]
-            all_frames.append(image)
-        else:
-            env.render("human")
 
-        rnn_states_batch = np.zeros(
-            (self.num_envs * self.num_agents, self.hidden_size), dtype=np.float32
-        )
-        last_acts_batch = np.zeros(
-            (self.num_envs * self.num_agents, self.policies["policy_0"].output_dim), dtype=np.float32
-        )
-        
-        for t in range(self.episode_length):
-            obs_batch = np.concatenate(obs)
-            node_obs_batch = np.concatenate(node_obs)
-            adj_batch = np.concatenate(adj)
-            agent_id_batch = np.concatenate(agent_id)
-            
-            policy = self.policies["policy_0"]
-            acts_batch, rnn_states_batch = policy.get_actions(
-                obs_batch, node_obs_batch, adj_batch, agent_id_batch,
-                last_acts_batch, rnn_states_batch,
-                t_env=self.total_env_steps, explore=False
-            )
-            
-            acts_batch = acts_batch if isinstance(acts_batch, np.ndarray) else acts_batch.cpu().detach().numpy()
-            rnn_states_batch = rnn_states_batch if isinstance(rnn_states_batch, np.ndarray) else rnn_states_batch.cpu().detach().numpy()
-            last_acts_batch = acts_batch
-
-            env_acts = np.split(acts_batch, self.num_envs)
-            
-            # Step returns 7 values
-            next_obs, next_agent_id, next_node_obs, next_adj, rewards, dones, infos = env.step(env_acts)
+        for episode in range(self.args.render_episodes):
+            obs, agent_id, node_obs, adj = env.reset()
             
             if self.args.save_gifs:
+                import imageio
+                all_frames = []
                 image = env.render("rgb_array")[0][0]
                 all_frames.append(image)
             else:
                 env.render("human")
 
-            obs = next_obs
-            agent_id = next_agent_id
-            node_obs = next_node_obs
-            adj = next_adj
+            rnn_states_batch = np.zeros(
+                (self.num_envs * self.num_agents, self.hidden_size), dtype=np.float32
+            )
+            last_acts_batch = np.zeros(
+                (self.num_envs * self.num_agents, self.policies["policy_0"].output_dim), dtype=np.float32
+            )
+            
+            for t in range(self.episode_length):
+                # print("epi:{}. t is: {}".format(episode, t))
+                obs_batch = np.concatenate(obs)
+                node_obs_batch = np.concatenate(node_obs)
+                adj_batch = np.concatenate(adj)
+                agent_id_batch = np.concatenate(agent_id)
+                
+                policy = self.policies["policy_0"]
+                acts_batch, rnn_states_batch = policy.get_actions(
+                    obs_batch, node_obs_batch, adj_batch, agent_id_batch,
+                    last_acts_batch, rnn_states_batch,
+                    t_env=self.total_env_steps, explore=False
+                )
+                
+                acts_batch = acts_batch if isinstance(acts_batch, np.ndarray) else acts_batch.cpu().detach().numpy()
+                rnn_states_batch = rnn_states_batch if isinstance(rnn_states_batch, np.ndarray) else rnn_states_batch.cpu().detach().numpy()
+                last_acts_batch = acts_batch
+
+                env_acts = np.split(acts_batch, self.num_envs)
+                
+                # Step returns 7 values
+                next_obs, next_agent_id, next_node_obs, next_adj, rewards, dones, infos = env.step(env_acts)
+                
+                if self.args.save_gifs:
+                    image = env.render("rgb_array")[0][0]
+                    all_frames.append(image)
+                else:
+                    env.render("human")
+
+                obs = next_obs
+                agent_id = next_agent_id
+                node_obs = next_node_obs
+                adj = next_adj
             
         if self.args.save_gifs:
             imageio.mimsave(str(self.run_dir) + '/render.gif', all_frames, duration=0.1)

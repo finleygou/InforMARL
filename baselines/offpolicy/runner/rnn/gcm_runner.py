@@ -185,9 +185,6 @@ class GCMRunner(MPERunner):
         self.start = time.time()
         self.log_clear()
 
-    @torch.no_grad()
-    def shared_collect_rollout(self, explore=True, training_episode=True, warmup=False):
-        
         if self.save_data:
             #csv
             print('save training data')
@@ -195,7 +192,10 @@ class GCMRunner(MPERunner):
             writer = csv.writer(file)
             writer.writerow(['step', 'average', 'min', 'max', 'std'])
             file.close()
-        
+
+    @torch.no_grad()
+    def shared_collect_rollout(self, explore=True, training_episode=True, warmup=False):
+                
         env_info = {}
         p_id = "policy_0"
         policy = self.policies[p_id]

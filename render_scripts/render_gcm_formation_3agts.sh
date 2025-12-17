@@ -17,7 +17,7 @@ CUDA_VISIBLE_DEVICES='0' python ../baselines/offpolicy/scripts/eval_mpe.py \
     --seed ${seed} \
     --experiment_name "check_gcm" \
     --scenario_name "graph_formation_3agts_test" \
-    --model_dir "/home/goufandi/goufandi_space/Projects/InforMARL/baselines/offpolicy/scripts/results/GraphMPE/graph_formation_3agts_test/gcm/check_gcm/run7/models/" \
+    --model_dir "/home/goufandi/goufandi_space/Projects/InforMARL/baselines/offpolicy/scripts/results/GraphMPE/graph_formation_3agts_test/gcm/check_gcm/run18/models/" \
     --save_gifs "false" \
     --render_episodes 5 \
     --episode_length ${ep_lens} \

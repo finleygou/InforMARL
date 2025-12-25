@@ -249,8 +249,7 @@ class RecRunner(object):
         #     self.env_infos[k].append(v)
 
         # train
-        if (
-            (self.num_episodes_collected - self.last_train_episode)
+        if ((self.num_episodes_collected - self.last_train_episode)
             / self.train_interval_episode
         ) >= 1 or self.last_train_episode == 0:
             self.train()

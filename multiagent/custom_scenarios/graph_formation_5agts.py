@@ -31,6 +31,10 @@ class Scenario(BaseScenario):
         self.target_band = 0.08  #  0.08 0.2 0.3
         self.error_band = self.target_band
 
+        self.penalty_start = 1 # 20 
+        self.penalty_target = 10
+        self.penalty = self.penalty_target
+
     def make_world(self, args: argparse.Namespace) -> World:
         # pull params from args
         self.cp = args.cp
@@ -177,8 +181,10 @@ class Scenario(BaseScenario):
 
         if CL_ratio < self.cp:
             self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
+            self.penalty = self.penalty_start - (self.penalty_start - self.penalty_target)*CL_ratio/self.cp
         else:
             self.error_band = self.target_band
+            self.penalty = self.penalty_target
 
     def info_callback(self, agent: Agent, world: World) -> Tuple:
         # # TODO modify this
@@ -295,7 +301,8 @@ class Scenario(BaseScenario):
         
         # collision reward
         r_ca = 0
-        penalty = 10
+        # penalty = 10
+        penalty = self.penalty
         collision_flag = False
         for obs in obstacles:
             d_ij = np.linalg.norm(ego.state.p_pos - obs.state.p_pos)

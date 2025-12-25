@@ -16,6 +16,97 @@ from torch_geometric.typing import OptPairTensor, Adj, OptTensor, Size
 import torch.jit as jit
 from .util import init, get_clones
 
+
+global comm_drop_prob
+comm_drop_prob = 0
+
+def drop_mask_tensor(connect_mask: Tensor,
+                     drop_prob: float = 0.3,
+                     generator: Optional[Union[torch.Generator, int]] = None,
+                     symmetric: bool = False,
+                     inplace: bool = False) -> Tensor:
+    """
+    Randomly drop ones in a torch tensor adjacency mask (1 -> 0) with probability `drop_prob`.
+
+    Args:
+        connect_mask: torch.Tensor of shape (N,N) or (B,N,N) with 0/1 (float or int) values.
+        drop_prob: probability to drop each existing 1 (0 <= drop_prob <= 1).
+        generator: torch.Generator or integer seed for reproducibility. If None, uses global RNG.
+        symmetric: if True, drop symmetric pairs (i,j) and (j,i) together (preserves undirected graphs).
+        inplace: if True, modify input tensor in-place. Otherwise a copy is returned.
+
+    Returns:
+        Tensor with the same shape/device/dtype as `connect_mask` with some 1s set to 0.
+    """
+    if not (0.0 <= drop_prob <= 1.0):
+        raise ValueError("drop_prob must be in [0, 1]")
+
+    if not inplace:
+        connect_mask = connect_mask.clone()
+
+    device = connect_mask.device
+    dtype = connect_mask.dtype
+
+    # normalize to boolean (True where 1)
+    ones = connect_mask > 0.5
+
+    # prepare generator
+    gen = None
+    if isinstance(generator, int):
+        gen = torch.Generator(device=device)
+        gen.manual_seed(generator)
+    elif isinstance(generator, torch.Generator):
+        gen = generator
+
+    if drop_prob == 0.0:
+        return connect_mask
+
+    # handle batched and unbatched masks
+    if connect_mask.dim() == 3:
+        B, N, _ = connect_mask.shape
+        iu = torch.triu_indices(N, N, offset=1, device=device)  # (2, m)
+        m = iu.size(1)
+        # random values for each batch and upper-triangle position
+        r = torch.rand((B, m), device=device, generator=gen) if gen is not None else torch.rand((B, m), device=device)
+        upper_vals = ones[:, iu[0], iu[1]]  # (B, m)
+        drop_upper = (r < drop_prob) & upper_vals
+        if drop_upper.any():
+            mask3 = torch.zeros_like(ones, dtype=torch.bool)
+            b_idx = torch.arange(B, device=device).unsqueeze(1).repeat(1, m)  # (B, m)
+            i_idx = iu[0].unsqueeze(0).repeat(B, 1)
+            j_idx = iu[1].unsqueeze(0).repeat(B, 1)
+            # set both (i,j) and (j,i)
+            mask3[b_idx[drop_upper], i_idx[drop_upper], j_idx[drop_upper]] = True
+            mask3[b_idx[drop_upper], j_idx[drop_upper], i_idx[drop_upper]] = True
+            connect_mask = connect_mask.masked_fill(mask3, 0)
+    elif connect_mask.dim() == 2:
+        N = connect_mask.size(0)
+        iu = torch.triu_indices(N, N, offset=1, device=device)
+        m = iu.size(1)
+        r = torch.rand((m,), device=device, generator=gen) if gen is not None else torch.rand((m,), device=device)
+        upper_vals = ones[iu[0], iu[1]]  # (m,)
+        drop_upper = (r < drop_prob) & upper_vals
+        if drop_upper.any():
+            i_drop = iu[0][drop_upper]
+            j_drop = iu[1][drop_upper]
+            connect_mask[i_drop, j_drop] = 0
+            if symmetric:
+                connect_mask[j_drop, i_drop] = 0
+    else:
+        # Unexpected dims: fall back to element-wise dropping
+        r = torch.rand_like(connect_mask, generator=gen) if gen is not None else torch.rand_like(connect_mask)
+        drop_mask = (r < drop_prob) & ones
+        connect_mask[drop_mask] = 0
+
+    if not symmetric and connect_mask.dim() in (2, 3):
+        # If not symmetric, perform independent per-element drops
+        r2 = torch.rand(connect_mask.shape, device=device, generator=gen) if gen is not None else torch.rand(connect_mask.shape, device=device)
+        drop_mask2 = (r2 < drop_prob) & (connect_mask > 0.5)
+        connect_mask[drop_mask2] = 0
+
+    # preserve dtype
+    return connect_mask.to(dtype)
+
 """GNN modules"""
 
 class EmbedConv(MessagePassing):
@@ -338,11 +429,17 @@ class TransformerConvNet(nn.Module):
         `adj` is of shape (batch_size, num_nodes, num_nodes)
         OR (num_nodes, num_nodes)
         """
+        global comm_drop_prob
         assert adj.dim() >= 2 and adj.dim() <= 3
         assert adj.size(-1) == adj.size(-2)
 
         # filter far away nodes and connection to itself
         connect_mask = ((adj < max_edge_dist) & (adj > 0)).float()
+        if comm_drop_prob > 0:
+            # use tensor-based drop to operate on torch tensors
+            connect_mask = drop_mask_tensor(connect_mask, drop_prob=comm_drop_prob,
+                                            generator=None, symmetric=True, inplace=False)
+        
         adj = adj * connect_mask
         # print("adj", adj.shape)  # (5, 13, 13)
         if adj.dim() == 3:

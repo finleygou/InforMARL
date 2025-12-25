@@ -5,14 +5,14 @@ seed_max=1
 n_agents=3
 # graph_feat_types=("global" "global" "relative" "relative")
 # cent_obs=("True" "False" "True" "False")
-ep_lens=200
+ep_lens=150
 
 for seed in `seq ${seed_max}`;
 do
 # seed=`expr ${seed} + 1`
 echo "seed: ${seed}"
 # execute the script with different params
-CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py \
+CUDA_VISIBLE_DEVICES='0' python  ../onpolicy/scripts/train_mpe.py \
 --use_valuenorm --use_popart \
 --project_name "GP_Graph_ABL" \
 --env_name "GraphMPE" \
@@ -26,11 +26,11 @@ CUDA_VISIBLE_DEVICES='1' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 1 --num_agents 3 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "encirclement" \
 --save_data "True" \
---reward_file_name "r_encirclement_3agts-00" \
+--reward_file_name "r_enc_3agts-S+" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.5 --cp 0.4 --js_ratio 0.8 \
---use_wandb "True" \
+--guide_cp 0.4 --cp 0.4 --js_ratio 0.3 \
+--use_wandb "False" \
 --n_training_threads 16 --n_rollout_threads 32 \
 --use_lstm "True" \
 --episode_length ${ep_lens} \

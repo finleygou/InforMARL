@@ -27,6 +27,10 @@ class Scenario(BaseScenario):
         self.target_band = 0.08  #  0.08 0.2 0.3
         self.error_band = self.target_band
 
+        self.penalty_start = 1 # 20 
+        self.penalty_target = 10
+        self.penalty = self.penalty_target
+
     def make_world(self, args: argparse.Namespace) -> World:
         # pull params from args
         self.cp = args.cp
@@ -149,32 +153,34 @@ class Scenario(BaseScenario):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
         start_CL = 0.
-        if start_CL < CL_ratio < self.cp:
-            for i, obs in enumerate(obstacles):
-                obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
-                obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
-            for i, d_obs in enumerate(dynamic_obstacles):
-                d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
-                d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
-        elif CL_ratio >= self.cp:
-            for i, obs in enumerate(obstacles):
-                obs.R = self.sizes_obs[i]
-                obs.delta = 0.1
-            for i, d_obs in enumerate(dynamic_obstacles):
-                d_obs.R = d_obs.size
-                d_obs.delta = 0.1
-        else:
-            for i, obs in enumerate(obstacles):
-                obs.R = 0.05
-                obs.delta = 0.05
-            for i, d_obs in enumerate(dynamic_obstacles):  
-                d_obs.R = 0.05
-                d_obs.delta = 0.05
+        # if start_CL < CL_ratio < self.cp:
+        #     for i, obs in enumerate(obstacles):
+        #         obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
+        #         obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+        #     for i, d_obs in enumerate(dynamic_obstacles):
+        #         d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
+        #         d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+        # elif CL_ratio >= self.cp:
+        #     for i, obs in enumerate(obstacles):
+        #         obs.R = self.sizes_obs[i]
+        #         obs.delta = 0.1
+        #     for i, d_obs in enumerate(dynamic_obstacles):
+        #         d_obs.R = d_obs.size
+        #         d_obs.delta = 0.1
+        # else:
+        #     for i, obs in enumerate(obstacles):
+        #         obs.R = 0.05
+        #         obs.delta = 0.05
+        #     for i, d_obs in enumerate(dynamic_obstacles):  
+        #         d_obs.R = 0.05
+        #         d_obs.delta = 0.05
 
         if CL_ratio < self.cp:
-            self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
+            # self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
+            self.penalty = self.penalty_start - (self.penalty_start - self.penalty_target)*CL_ratio/self.cp
         else:
-            self.error_band = self.target_band
+            # self.error_band = self.target_band
+            self.penalty = self.penalty_target
 
     def info_callback(self, agent: Agent, world: World) -> Tuple:
         # # TODO modify this
@@ -283,7 +289,8 @@ class Scenario(BaseScenario):
         
         # collision reward
         r_ca = 0
-        penalty = 10
+        # penalty = 10
+        penalty = self.penalty
         for obs in obstacles:
             d_ij = np.linalg.norm(ego.state.p_pos - obs.state.p_pos)
             if d_ij < ego.R + obs.R:

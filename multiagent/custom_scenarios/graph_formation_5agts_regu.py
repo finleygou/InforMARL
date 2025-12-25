@@ -1,5 +1,5 @@
 """
-6 egos
+5 egos
 4 obstacles
 4 dynamic obstacles
 """
@@ -28,11 +28,11 @@ class Scenario(BaseScenario):
         # self.error_band = self.target_band
 
         self.init_band = 0.15
-        self.target_band = 0.08  #  0.08 0.2 0.3
+        self.target_band = 0.05  #  0.08 0.2 0.3
         self.error_band = self.target_band
 
-        self.penalty_start = 1 # 20 
-        self.penalty_target = 10
+        self.penalty_start = 5 # 20 
+        self.penalty_target = 15
         self.penalty = self.penalty_target
 
     def make_world(self, args: argparse.Namespace) -> World:
@@ -112,9 +112,9 @@ class Scenario(BaseScenario):
         world.num_obstacle_collisions = np.zeros(self.num_egos)
         world.num_agent_collisions = np.zeros(self.num_egos)
 
-        init_pos_ego = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 1.414], [0.707, 0.707], [1.414, 0.]])
-        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.01
-        H = np.array([[0., 0.], [-1.414, 0.], [-0.707, 0.707], [0.0, 1.414], [0.707, 0.707], [1.414, 0.]])
+        init_pos_ego = np.array([[0., 0.], [-0.707, 0.707], [0.707, 0.707], [-0.707, -0.707], [0.707, -0.707]])
+        init_pos_ego = init_pos_ego + np.random.randn(*init_pos_ego.shape)*0.05
+        H = np.array([[0., 0.], [-0.707, 0.707], [0.707, 0.707], [-0.707, -0.707], [0.707, -0.707]])
         for i, ego in enumerate(world.egos):
             if i==0:
                 ego.is_leader = True
@@ -157,34 +157,34 @@ class Scenario(BaseScenario):
         obstacles = world.obstacles
         dynamic_obstacles = world.dynamic_obstacles
         start_CL = 0.0
-        if start_CL < CL_ratio < self.cp:
-            for i, obs in enumerate(obstacles):
-                obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
-                obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
-            for i, d_obs in enumerate(dynamic_obstacles):
-                d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
-                d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
-        elif CL_ratio >= self.cp:
-            for i, obs in enumerate(obstacles):
-                obs.R = self.sizes_obs[i]
-                obs.delta = 0.1
-            for i, d_obs in enumerate(dynamic_obstacles):
-                d_obs.R = d_obs.size
-                d_obs.delta = 0.1
-        else:
-            for i, obs in enumerate(obstacles):
-                obs.R = 0.05
-                obs.delta = 0.05
-            for i, d_obs in enumerate(dynamic_obstacles):  
-                d_obs.R = 0.05
-                d_obs.delta = 0.05
-
-        # if CL_ratio < self.cp:
-        #     self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
-        #     # self.penalty = self.penalty_start - (self.penalty_start - self.penalty_target)*CL_ratio/self.cp
+        # if start_CL < CL_ratio < self.cp:
+        #     for i, obs in enumerate(obstacles):
+        #         obs.R = self.sizes_obs[i]*(CL_ratio-start_CL)/(self.cp-start_CL)
+        #         obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+        #     for i, d_obs in enumerate(dynamic_obstacles):
+        #         d_obs.R = d_obs.size*(CL_ratio-start_CL)/(self.cp-start_CL)
+        #         d_obs.delta = 0.1*(CL_ratio-start_CL)/(self.cp-start_CL)
+        # elif CL_ratio >= self.cp:
+        #     for i, obs in enumerate(obstacles):
+        #         obs.R = self.sizes_obs[i]
+        #         obs.delta = 0.1
+        #     for i, d_obs in enumerate(dynamic_obstacles):
+        #         d_obs.R = d_obs.size
+        #         d_obs.delta = 0.1
         # else:
-        #     self.error_band = self.target_band
-        #     # self.penalty = self.penalty_target
+        #     for i, obs in enumerate(obstacles):
+        #         obs.R = 0.05
+        #         obs.delta = 0.05
+        #     for i, d_obs in enumerate(dynamic_obstacles):  
+        #         d_obs.R = 0.05
+        #         d_obs.delta = 0.05
+
+        if CL_ratio < self.cp:
+            self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
+            # self.penalty = self.penalty_start - (self.penalty_start - self.penalty_target)*CL_ratio/self.cp
+        else:
+            self.error_band = self.target_band
+            # self.penalty = self.penalty_target
 
     def info_callback(self, agent: Agent, world: World) -> Tuple:
         # # TODO modify this

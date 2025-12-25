@@ -25,7 +25,7 @@ do
     --use_wandb "False" \
     --save_gifs "False" \
     --use_render "True" \
-    --save_data "True" \
+    --save_data "False" \
     --use_curriculum "False" \
     --use_policy "False" \
     --gp_type "encirclement" \
@@ -42,6 +42,6 @@ do
     --graph_feat_type "relative" \
     --use_att_gnn "False" \
     --monte_carlo_test "False" \
-    --render_episodes 1 \
+    --render_episodes 5 \
     --model_dir "/data/goufandi_space/Projects/InforMARL/onpolicy/results/GraphMPE/graph_encirclement_3agts/rmappo/check/wandb/run-20241011_123032-eoesx919/files/"
 done

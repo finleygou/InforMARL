@@ -6,7 +6,7 @@ def set_JS_curriculum(CL_ratio, gp_type):
     if "formation" in gp_type:
         func_ = 1-CL_ratio
     elif "encirclement" in gp_type:
-        # k = 1.0
+        # k = 0.4  # 2.0, 0.4
         # delta = 1-(np.exp(-k*(-1))-np.exp(k*(-1)))/(np.exp(-k*(-1))+np.exp(k*(-1)))
         # x = 2*CL_ratio-1
         # y_mid = (np.exp(-k*x)-np.exp(k*x))/(np.exp(-k*x)+np.exp(k*x))-delta*x**3

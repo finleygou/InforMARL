@@ -32,6 +32,10 @@ class Scenario(BaseScenario):
         self.delta_angle_band = self.angle_band_target
         self.d_lft_band = self.band_target
         self.dleft_lb = self.d_cap - self.d_lft_band
+        # probability to drop an existing communication/link (1 -> 0)
+        # can be overridden after construction (e.g., from args in make_world)
+        self.comm_drop_prob = 0.0  # (drop rate) it is a flag, also a hyperparameter
+        self.sensor_noise = 0.0  # (noise) standard deviation of sensor noise. it is a flag, also a hyperparameter
 
     def make_world(self, args: argparse.Namespace) -> World:
         # pull params from args
@@ -394,6 +398,10 @@ class Scenario(BaseScenario):
         # just connect the ones which are within connection
         # distance and do not connect to itself
         connect = np.array((dists <= self.max_edge_dist) * (dists > 0)).astype(int)
+        if self.comm_drop_prob > 0:
+            # only for visualization, not for training
+            connect = drop_connections(connect, drop_prob=self.comm_drop_prob,
+                                       rng=np.random.default_rng(), symmetric=True, inplace=False)
         sparse_connect = sparse.csr_matrix(connect)
         sparse_connect = sparse_connect.tocoo()
         row, col = sparse_connect.row, sparse_connect.col
@@ -444,6 +452,10 @@ class Scenario(BaseScenario):
         pos = agent.state.p_pos - entity.state.p_pos
         vel = agent.state.p_vel - entity.state.p_vel
         Radius = entity.R
+        if self.sensor_noise > 0:
+            pos = pos + np.random.normal(0, self.sensor_noise, size=pos.shape)
+            vel = vel + np.random.normal(0, self.sensor_noise, size=vel.shape)
+
         if "agent" in entity.name:
             entity_type = entity_mapping["agent"]
         elif "target" in entity.name:
@@ -456,6 +468,62 @@ class Scenario(BaseScenario):
             raise ValueError(f"{entity.name} not supported")
 
         return np.hstack([pos, vel, Radius, entity_type])  # dim = 6
+
+def drop_connections(connect: np.ndarray,
+                     drop_prob: float = 0.3,
+                     rng: Optional[np.random.Generator] = None,
+                     symmetric: bool = False,
+                     inplace: bool = False) -> np.ndarray:
+    """
+    Randomly drop existing connections (1 -> 0) with probability `drop_prob`.
+
+    Args:
+      connect: 2D numpy array of 0/1 (binary adjacency). Shape (N,N) or (M,N).
+      drop_prob: probability to drop each existing 1 (0 <= drop_prob <= 1).
+      rng: optional numpy.random.Generator for reproducibility. If None, a new RNG is used.
+      symmetric: if True, treat `connect` as an undirected adjacency matrix and
+                 randomly drop symmetric edge pairs (i,j) and (j,i) together.
+                 Diagonal is not changed.
+      inplace: if True, modify the input array in-place. Otherwise a copy is returned.
+
+    Returns:
+      The matrix with some 1s set to 0 according to drop_prob.
+    """
+    if not (0 <= drop_prob <= 1):
+        raise ValueError("drop_prob must be in [0, 1]")
+
+    if rng is None:
+        rng = np.random.default_rng()
+
+    if not inplace:
+        connect = connect.copy()
+
+    # Ensure boolean mask of existing 1s
+    ones_mask = (connect == 1)
+
+    if symmetric:
+        # Only operate on upper-triangle (exclude diagonal) and mirror changes
+        iu = np.triu_indices_from(connect, k=1)  # k=1 excludes diagonal
+        # generate random values for the upper triangle positions
+        r = rng.random(iu[0].shape)
+        # determine which upper-triangle 1s to drop
+        upper_ones = (connect[iu] == 1)
+        drop_upper = (r < drop_prob) & upper_ones
+        if drop_upper.any():
+            i_drop = iu[0][drop_upper]
+            j_drop = iu[1][drop_upper]
+            connect[i_drop, j_drop] = 0
+            connect[j_drop, i_drop] = 0
+    else:
+        # directed / independent drops per matrix element
+        r = rng.random(connect.shape)
+        drop_mask = (r < drop_prob) & ones_mask
+        connect[drop_mask] = 0
+
+    # preserve integer dtype if present
+    if np.issubdtype(connect.dtype, np.bool_):
+        return connect.astype(np.int64)
+    return connect
 
 def dobs_policy(agent, obstacles, dobs):
     action = agent.action

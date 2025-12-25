@@ -273,6 +273,8 @@ class World(object):
     # update state of the world
     def step(self):
         self.world_step += 1
+        # print("World step: {}".format(self.world_step))
+
         # set actions for scripted agents
         for i, agent in enumerate(self.agents):
             if agent.name == 'target':

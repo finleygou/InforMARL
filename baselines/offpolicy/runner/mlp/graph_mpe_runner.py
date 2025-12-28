@@ -6,6 +6,7 @@ import torch
 import time
 from baselines.offpolicy.utils.util import is_multidiscrete
 from baselines.offpolicy.runner.mlp.base_runner import MlpRunner
+from onpolicy import global_var as glv
 
 
 class GraphMPERunner(MlpRunner):

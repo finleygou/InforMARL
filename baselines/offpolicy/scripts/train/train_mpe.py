@@ -18,7 +18,10 @@ from baselines.offpolicy.config import get_config
 from baselines.offpolicy.utils.util import get_cent_act_dim, get_dim_from_space
 from multiagent.MPE_env import MPEEnv, GraphMPEEnv
 from baselines.offpolicy.envs.env_wrappers import DummyVecEnv, SubprocVecEnv
+from onpolicy import global_var as glv
 
+glv._init()
+glv.set_value('CL_ratio',0.0)
 
 def make_train_env(all_args):
     def get_env_fn(rank):

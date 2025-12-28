@@ -25,20 +25,20 @@ CUDA_VISIBLE_DEVICES='3' python  ../onpolicy/scripts/train_mpe.py \
 --num_target 0 --num_agents 4 --num_obstacle 4 --num_dynamic_obs 4 \
 --gp_type "navigation" \
 --save_data "True" \
---reward_file_name "r_navigation_4agts-NT-v1" \
+--reward_file_name "r_nav_4agts-infor-noGP" \
 --use_policy "False" \
 --use_curriculum "True" \
---guide_cp 0.5 --cp 0.4 --js_ratio 0.7 \
---use_wandb "True" \
+--guide_cp 0.5 --cp 0.4 --js_ratio 0.0 \
+--use_wandb "False" \
 --n_training_threads 16 --n_rollout_threads 32 \
---use_lstm "True" \
+--use_lstm "False" \
 --episode_length ${ep_lens} \
 --num_env_steps 6000000 \
 --ppo_epoch 15 --use_ReLU --gain 0.01 --lr 2e-4 --critic_lr 2e-4 \
 --user_name "finleygou" \
 --use_cent_obs "False" \
 --graph_feat_type "relative" \
---use_att_gnn "True" \
+--use_att_gnn "False" \
 --split_batch "True" --max_batch_size 512 \
 --auto_mini_batch_size "True" --target_mini_batch_size 512
 done

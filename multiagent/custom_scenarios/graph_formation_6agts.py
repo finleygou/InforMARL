@@ -179,12 +179,12 @@ class Scenario(BaseScenario):
                 d_obs.R = 0.05
                 d_obs.delta = 0.05
 
-        # if CL_ratio < self.cp:
-        #     self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
-        #     # self.penalty = self.penalty_start - (self.penalty_start - self.penalty_target)*CL_ratio/self.cp
-        # else:
-        #     self.error_band = self.target_band
-        #     # self.penalty = self.penalty_target
+        if CL_ratio < self.cp:
+            self.error_band = self.init_band - (self.init_band - self.target_band)*CL_ratio/self.cp
+            self.penalty = self.penalty_start - (self.penalty_start - self.penalty_target)*CL_ratio/self.cp
+        else:
+            self.error_band = self.target_band
+            self.penalty = self.penalty_target
 
     def info_callback(self, agent: Agent, world: World) -> Tuple:
         # # TODO modify this

@@ -27,6 +27,9 @@ class Scenario(BaseScenario):
         self.band_target = 0.1
         self.d_lft_band = self.band_target
 
+        self.comm_drop_prob = 0.0  # (drop rate) it is a flag, also a hyperparameter
+        self.sensor_noise = 0.0  # (noise) standard deviation of sensor noise. it is a flag, also a hyperparameter
+
     def make_world(self, args: argparse.Namespace) -> World:
         # pull params from args
         self.cp = args.cp
@@ -357,6 +360,11 @@ class Scenario(BaseScenario):
         pos = agent.state.p_pos - entity.state.p_pos
         vel = agent.state.p_vel - entity.state.p_vel
         Radius = entity.R
+
+        if self.sensor_noise > 0:
+            pos = pos + np.random.normal(0, self.sensor_noise, size=pos.shape)
+            vel = vel + np.random.normal(0, self.sensor_noise, size=vel.shape)
+
         if "agent" in entity.name:
             entity_type = entity_mapping["agent"]
         elif "target" in entity.name:

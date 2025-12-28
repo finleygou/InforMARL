@@ -208,7 +208,14 @@ class MPERunner(RecRunner):
 
         infos = self.process_env_infos(infos)
         env_info.update(infos)
+        # print(episode_rewards[p_id].shape)
         average_episode_rewards = np.mean(np.sum(episode_rewards[p_id], axis=0))
+        Min_ = np.min(np.sum(episode_rewards[p_id], axis=0))
+        Max_ = np.max(np.sum(episode_rewards[p_id], axis=0))
+        Std_ = np.std(np.sum(episode_rewards[p_id], axis=0))
+        env_info["min_episode_rewards"] = Min_
+        env_info["max_episode_rewards"] = Max_
+        env_info["std_episode_rewards"] = Std_
         env_info["average_episode_rewards"] = average_episode_rewards
 
         return env_info

@@ -25,6 +25,8 @@ class GCMRunner(MPERunner):
 
         self.save_data = self.args.save_data
         self.reward_file_name = self.args.reward_file_name
+        # accumulate per-episode average rewards between log calls
+        self.recent_episode_rewards = []
 
         self.share_policy = self.args.share_policy
         self.algorithm_name = self.args.algorithm_name
@@ -207,6 +209,12 @@ class GCMRunner(MPERunner):
         self.trainer.prep_rollout()
         env_info = self.collecter(explore=True, training_episode=True, warmup=False)
         self.env_infos.update(env_info)
+        # record this episode's average reward for interval statistics
+        try:
+            avg = float(env_info.get("average_episode_rewards", 0))
+        except Exception:
+            avg = 0.0
+        self.recent_episode_rewards.append(avg)
 
         # train
         if ((self.num_episodes_collected - self.last_train_episode)
@@ -243,6 +251,17 @@ class GCMRunner(MPERunner):
         episode = self.num_episodes_collected
         total_num_steps = self.total_env_steps
         avg_ep_rew = self.env_infos.get('average_episode_rewards', 0)
+        # Compute interval stats from episodes collected since the last log
+        if len(self.recent_episode_rewards) > 0:
+            avg_interval = float(np.mean(self.recent_episode_rewards))
+            min_interval = float(np.min(self.recent_episode_rewards))
+            max_interval = float(np.max(self.recent_episode_rewards))
+            std_interval = float(np.std(self.recent_episode_rewards))
+        else:
+            avg_interval = 0.0
+            min_interval = 0.0
+            max_interval = 0.0
+            std_interval = 0.0
         
         print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}, CL {}.\n"
                 .format(getattr(self.args, 'scenario_name', 'unknown'),
@@ -254,35 +273,23 @@ class GCMRunner(MPERunner):
                         self.num_env_steps,
                         int(total_num_steps / (end - self.start)),
                         format(glv.get_value('CL_ratio'), '.3f')))
-        print("average episode rewards is {}".format(avg_ep_rew))
+        # print("average episode rewards is {}".format(avg_ep_rew))
         
         for p_id, train_info in zip(self.policy_ids, self.train_infos):
             self.log_train(p_id, train_info)
 
-        self.log_env(self.env_infos)
-        
         if self.save_data:
-            # Get stats across episodes since last log
-            episode_rewards_list = self.env_infos.get("average_episode_rewards", [])
-            if episode_rewards_list:
-                episode_totals = np.array(episode_rewards_list)
-                Average = np.mean(episode_totals)
-                Min = np.min(episode_totals)
-                Max = np.max(episode_totals)
-                Std = np.std(episode_totals)
-            else:
-                Average = avg_ep_rew
-                Min = 0
-                Max = 0
-                Std = 0
+            # Save interval statistics (since last log) to CSV
             file = open(self.reward_file_name+'.csv', 'a', encoding='utf-8', newline="")
             writer = csv.writer(file)
-            writer.writerow([total_num_steps, Average, Min, Max, Std])
+            writer.writerow([total_num_steps, avg_interval, min_interval, max_interval, std_interval])
             file.close()
-            # Clear the accumulated rewards
-            self.episode_rewards_since_last_log = []
-        
+
+        self.log_env(self.env_infos)
+                
+        # Clear env infos (inherited) and reset interval accumulator
         self.log_clear()
+        self.recent_episode_rewards = []
 
     @torch.no_grad()
     def shared_collect_rollout(self, explore=True, training_episode=True, warmup=False):

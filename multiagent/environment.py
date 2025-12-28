@@ -281,6 +281,7 @@ class MultiAgentBaseEnv(gym.Env):
     def _set_CL(self, CL_ratio):
         glv.set_value('CL_ratio', CL_ratio)
         self.CL_ratio = glv.get_value('CL_ratio')
+        # print("Current CL ratio: {:.3f}".format(self.CL_ratio))
 
     # reset rendering assets
     def _reset_render(self) -> None:

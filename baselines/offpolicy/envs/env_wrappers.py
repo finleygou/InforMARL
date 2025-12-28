@@ -173,6 +173,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset":
             ob = env.reset()
             remote.send((ob))
+        elif cmd == 'set_cl':
+            env._set_CL(data)
         elif cmd == "render":
             if data == "rgb_array":
                 fr = env.render(mode=data)
@@ -294,6 +296,10 @@ class SubprocVecEnv(ShareVecEnv):
             # return np.stack(frame) 
             frame = remote.recv()
             return frame  # np.array 图像格式
+        
+    def set_CL(self, CL_ratio):
+        for remote in self.remotes:
+            remote.send(('set_cl', CL_ratio))
 
 def shareworker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
@@ -312,6 +318,8 @@ def shareworker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset":
             ob, s_ob, available_actions = env.reset()
             remote.send((ob, s_ob, available_actions))
+        elif cmd == "set_cl":
+            env._set_CL(data)
         elif cmd == "render":
             if data == "rgb_array":
                 fr = env.render(mode=data)
@@ -425,6 +433,10 @@ class ShareSubprocVecEnv(ShareVecEnv):
         else:
             raise NotImplementedError
 
+    def set_CL(self, CL_ratio):
+        for remote in self.remotes:
+            remote.send(('set_cl', CL_ratio))
+
 
 def chooseworker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()
@@ -446,6 +458,8 @@ def chooseworker(remote, parent_remote, env_fn_wrapper):
         elif cmd == "reset_task":
             ob = env.reset_task()
             remote.send(ob)
+        elif cmd == "set_cl":
+            env._set_CL(data)
         elif cmd == "close":
             env.close()
             remote.close()
@@ -550,6 +564,10 @@ class ChooseSubprocVecEnv(ShareVecEnv):
         else:
             raise NotImplementedError
 
+    def set_CL(self, CL_ratio):
+        for remote in self.remotes:
+            remote.send(('set_cl', CL_ratio))
+
 
 # single env
 
@@ -610,6 +628,9 @@ class DummyVecEnv(ShareVecEnv):
         for env in self.envs:
             env.close()
 
+    def set_CL(self, CL_ratio):
+        for env in self.envs:
+            env._set_CL(CL_ratio)
 
 class ShareDummyVecEnv(ShareVecEnv):
     def __init__(self, env_fns):
@@ -645,6 +666,10 @@ class ShareDummyVecEnv(ShareVecEnv):
         for env in self.envs:
             env.close()
 
+    def set_CL(self, CL_ratio):
+        for env in self.envs:
+            env._set_CL(CL_ratio)
+
 
 class ChooseDummyVecEnv(ShareVecEnv):
     def __init__(self, env_fns):
@@ -678,3 +703,7 @@ class ChooseDummyVecEnv(ShareVecEnv):
     def close(self):
         for env in self.envs:
             env.close()
+
+    def set_CL(self, CL_ratio):
+        for env in self.envs:
+            env._set_CL(CL_ratio)

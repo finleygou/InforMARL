@@ -291,7 +291,10 @@ def main(args):
         ), "only support 1 env in recurrent version."
         eval_env = env
     elif all_args.algorithm_name in ["matd3", "maddpg", "masac", "mqmix", "mvdn"]:
-        from baselines.offpolicy.runner.mlp.mpe_runner import MPERunner as Runner
+        if all_args.env_name == "GraphMPE":
+            from baselines.offpolicy.runner.mlp.graph_mpe_runner import GraphMPERunner as Runner
+        else:
+            from baselines.offpolicy.runner.mlp.mpe_runner import MPERunner as Runner
 
         eval_env = make_eval_env(all_args)
     elif all_args.algorithm_name == "gcm":

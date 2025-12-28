@@ -2,12 +2,14 @@ import numpy as np
 import torch
 import wandb
 import os
+import time
 from torch.utils.tensorboard import SummaryWriter
 
 from baselines.offpolicy.runner.rnn.mpe_runner import MPERunner
 from baselines.offpolicy.algorithms.gcm.algorithm.gcm_policy import GCMPolicy
 from baselines.offpolicy.algorithms.gcm.gcm import GCM
 from baselines.offpolicy.algorithms.gcm.gcm_buffer import GraphRecReplayBuffer
+from onpolicy import global_var as glv
 import csv
 
 class GCMRunner(MPERunner):
@@ -179,7 +181,8 @@ class GCMRunner(MPERunner):
         )
         
         # Warmup
-        num_warmup_episodes = max((self.batch_size, self.args.num_random_episodes))
+        # num_warmup_episodes = max((self.batch_size, self.args.num_random_episodes))
+        num_warmup_episodes = 1
         self.warmup(num_warmup_episodes)
         import time
         self.start = time.time()
@@ -192,6 +195,94 @@ class GCMRunner(MPERunner):
             writer = csv.writer(file)
             writer.writerow(['step', 'average', 'min', 'max', 'std'])
             file.close()
+
+    def run(self):
+        """Collect a training episode and perform appropriate training, saving, logging, and evaluation steps."""
+        # set CL_ratio
+        CL_ratio = self.total_env_steps / self.num_env_steps
+        glv.set_value('CL_ratio', CL_ratio)
+        self.env.set_CL(glv.get_value('CL_ratio'))
+        
+        # collect data
+        self.trainer.prep_rollout()
+        env_info = self.collecter(explore=True, training_episode=True, warmup=False)
+        self.env_infos.update(env_info)
+
+        # train
+        if ((self.num_episodes_collected - self.last_train_episode)
+            / self.train_interval_episode
+        ) >= 1 or self.last_train_episode == 0:
+            self.train()
+            self.total_train_steps += 1
+            self.last_train_episode = self.num_episodes_collected
+
+        # save
+        if (self.total_env_steps - self.last_save_T) / self.save_interval >= 1:
+            self.saver()
+            self.last_save_T = self.total_env_steps
+
+        # log
+        if ((self.total_env_steps - self.last_log_T) / self.log_interval) >= 1:
+            self.log()
+            self.last_log_T = self.total_env_steps
+
+        # eval
+        if (
+            self.use_eval
+            and ((self.total_env_steps - self.last_eval_T) / self.eval_interval) >= 1
+        ):
+            self.eval()
+            self.last_eval_T = self.total_env_steps
+
+        return self.total_env_steps
+
+    def log(self):
+        """See parent class."""
+        end = time.time()
+        episodes = int(self.num_env_steps) // self.episode_length // self.num_envs
+        episode = self.num_episodes_collected
+        total_num_steps = self.total_env_steps
+        avg_ep_rew = self.env_infos.get('average_episode_rewards', 0)
+        
+        print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}, CL {}.\n"
+                .format(getattr(self.args, 'scenario_name', 'unknown'),
+                        self.algorithm_name,
+                        getattr(self.args, 'experiment_name', 'unknown'),
+                        episode,
+                        episodes,
+                        total_num_steps,
+                        self.num_env_steps,
+                        int(total_num_steps / (end - self.start)),
+                        format(glv.get_value('CL_ratio'), '.3f')))
+        print("average episode rewards is {}".format(avg_ep_rew))
+        
+        for p_id, train_info in zip(self.policy_ids, self.train_infos):
+            self.log_train(p_id, train_info)
+
+        self.log_env(self.env_infos)
+        
+        if self.save_data:
+            # Get stats across episodes since last log
+            episode_rewards_list = self.env_infos.get("average_episode_rewards", [])
+            if episode_rewards_list:
+                episode_totals = np.array(episode_rewards_list)
+                Average = np.mean(episode_totals)
+                Min = np.min(episode_totals)
+                Max = np.max(episode_totals)
+                Std = np.std(episode_totals)
+            else:
+                Average = avg_ep_rew
+                Min = 0
+                Max = 0
+                Std = 0
+            file = open(self.reward_file_name+'.csv', 'a', encoding='utf-8', newline="")
+            writer = csv.writer(file)
+            writer.writerow([total_num_steps, Average, Min, Max, Std])
+            file.close()
+            # Clear the accumulated rewards
+            self.episode_rewards_since_last_log = []
+        
+        self.log_clear()
 
     @torch.no_grad()
     def shared_collect_rollout(self, explore=True, training_episode=True, warmup=False):
@@ -308,6 +399,7 @@ class GCMRunner(MPERunner):
             )
 
         env_info["average_episode_rewards"] = np.mean(np.sum(episode_rewards[p_id], axis=0))
+        self.last_episode_rewards = np.sum(episode_rewards[p_id], axis=0).squeeze(-1)
         return env_info
 
     @torch.no_grad()

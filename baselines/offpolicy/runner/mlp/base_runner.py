@@ -5,6 +5,7 @@ from itertools import chain
 from torch.utils.tensorboard import SummaryWriter
 import torch
 import time
+from onpolicy import global_var as glv
 
 from baselines.offpolicy.utils.mlp_buffer import (
     MlpReplayBuffer,
@@ -103,6 +104,8 @@ class MlpRunner(object):
             self.save_dir = str(self.run_dir / "models")
             if not os.path.exists(self.save_dir):
                 os.makedirs(self.save_dir)
+
+        self.reward_file_name = getattr(self.args, 'reward_file_name', 'rewards')
 
         # initialize all the policies and organize the agents corresponding to each policy
         if self.algorithm_name == "matd3":
@@ -209,6 +212,11 @@ class MlpRunner(object):
 
     def run(self):
         """Collect a training episode and perform appropriate training, saving, logging, and evaluation steps."""
+        # set CL_ratio
+        CL_ratio = self.total_env_steps / self.num_env_steps
+        glv.set_value('CL_ratio', CL_ratio)
+        self.env.set_CL(glv.get_value('CL_ratio'))
+        
         # collect data
         self.trainer.prep_rollout()
         env_info = self.collecter(explore=True, training_episode=True, warmup=False)

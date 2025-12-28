@@ -4,6 +4,7 @@ import numpy as np
 from itertools import chain
 import torch
 import time
+import csv
 from baselines.offpolicy.utils.util import is_multidiscrete
 from baselines.offpolicy.runner.mlp.base_runner import MlpRunner
 from onpolicy import global_var as glv
@@ -16,6 +17,14 @@ class GraphMPERunner(MlpRunner):
         See parent class for more information.
         """
         super(GraphMPERunner, self).__init__(config)
+        self.save_data = getattr(self.args, 'save_data', False)
+        if self.save_data:
+            #csv
+            print('save training data')
+            file = open(self.reward_file_name+'.csv', 'w', encoding='utf-8', newline="")
+            writer = csv.writer(file)
+            writer.writerow(['step', 'average', 'min', 'max', 'std'])
+            file.close()
         self.collecter = (
             self.shared_collect_rollout
             if self.share_policy
@@ -410,14 +419,47 @@ class GraphMPERunner(MlpRunner):
     def log(self):
         """See parent class."""
         end = time.time()
-        print(
-            f"Timesteps: {self.total_env_steps}/{self.num_env_steps} "
-            f"FPS {int(self.total_env_steps / (end - self.start))}"
-        )
+        episodes = int(self.num_env_steps) // self.episode_length // self.num_envs
+        episode = self.num_episodes_collected
+        total_num_steps = self.total_env_steps
+        avg_ep_rew = self.env_infos.get('average_episode_rewards', 0)
+        
+        print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}, CL {}.\n"
+                .format(getattr(self.args, 'scenario_name', 'unknown'),
+                        self.algorithm_name,
+                        getattr(self.args, 'experiment_name', 'unknown'),
+                        episode,
+                        episodes,
+                        total_num_steps,
+                        self.num_env_steps,
+                        int(total_num_steps / (end - self.start)),
+                        format(glv.get_value('CL_ratio'), '.3f')))
+        print("average episode rewards is {}".format(avg_ep_rew))
+        
         for p_id, train_info in zip(self.policy_ids, self.train_infos):
             self.log_train(p_id, train_info)
 
         self.log_env(self.env_infos)
+        
+        if self.save_data:
+            # Get stats across episodes since last log
+            episode_rewards_list = self.env_infos.get("average_episode_rewards", [])
+            if episode_rewards_list:
+                episode_totals = np.array(episode_rewards_list)
+                Average = np.mean(episode_totals)
+                Min = np.min(episode_totals)
+                Max = np.max(episode_totals)
+                Std = np.std(episode_totals)
+            else:
+                Average = avg_ep_rew
+                Min = 0
+                Max = 0
+                Std = 0
+            file = open(self.reward_file_name+'.csv', 'a', encoding='utf-8', newline="")
+            writer = csv.writer(file)
+            writer.writerow([total_num_steps, Average, Min, Max, Std])
+            file.close()
+        
         self.log_clear()
 
     def log_env(self, env_info, suffix=None):
